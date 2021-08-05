@@ -12,9 +12,6 @@
 #include <iosfwd>
 #include <memory>
 
-//#include <Windows.h>
-//IMAGE_NT_HEADERS
-
 /// \brief  Describes the PE-style header
 struct PeExeHeader
 {

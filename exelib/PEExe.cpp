@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "PEExe.h"
-#include "ReadStream.h"
+#include "readstream.h"
 
 void PeExeInfo::load_header(std::istream &stream)
 {

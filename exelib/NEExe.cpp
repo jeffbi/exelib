@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "NEExe.h"
-#include "ReadStream.h"
+#include "readstream.h"
 #include "resource_type.h"
 
 namespace {

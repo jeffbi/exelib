@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "MZExe.h"
-#include "ReadStream.h"
+#include "readstream.h"
 
 /// \brief  Load the old MZ header from a stream. All EXE-type
 ///         files begin with this header, including resource-only files.

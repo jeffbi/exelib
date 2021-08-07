@@ -1,6 +1,6 @@
 /// \file   PEExe.cpp
 /// Implementation of PzExeInfo.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 

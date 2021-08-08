@@ -1,12 +1,17 @@
 /// \file   exedump.cpp
 /// The primary source file for the exedump sample.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
+#include <version>
 #include <exception>
 #include <fstream>
+#if defined(__cpp_lib_format)
 #include <format>
+#else
+#include <cstdio>
+#endif
 #include <iostream>
 #include <string>
 #include <vector>
@@ -24,6 +29,7 @@ void dump_pe_info(const PeExeInfo &info, std::ostream &outstream);  // in pedump
 
 void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
 {
+#if defined(__cpp_lib_format)
     const char *format_string =
         "Old MZ header\n-------------------------------------------\n"
         "Signature:                          0x{:04X}\n"
@@ -54,6 +60,44 @@ void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
                              header.relocation_table_pos,
                              header.overlay,
                              header.new_header_offset);
+#else
+    char buffer[1024];
+    const char *format_string =
+        "Old MZ header\n-------------------------------------------\n"
+        "Signature:                          0x%04X\n"
+        "Bytes on last page:                  %5hu\n"
+        "Total pages:                         %5hu\n"
+        "Number of relocation items:          %5hu\n"
+        "Number of paragraphs in header:      %5hu\n"
+        "Extra paragraphs required:           %5hu\n"
+        "Extra paragraphs requested:          %5hu\n"
+        "Initial SS : SP:           0x%04hX : 0x%04hX\n"
+        "Checksum:                           0x%04hX\n"
+        "Initial CS : IP:           0x%04hX : 0x%04hX\n"
+        "Relocation Table position:          0x%04hX\n"
+        "Overlay:                             %5hu\n"
+        "New header offset:              0x%08X\n";
+
+#if defined(_MSC_VER)
+    int size = sprintf_s(buffer, sizeof(buffer), format_string,
+#else
+    int size = std::sprintf(buffer, format_string,
+#endif
+                                    header.signature,
+                                    header.bytes_on_last_page,
+                                    header.num_pages,
+                                    header.num_relocation_items,
+                                    header.header_size,
+                                    header.min_allocation,
+                                    header.requested_allocation,
+                                    header.initial_SS, header.initial_SP,
+                                    header.checksum,
+                                    header.initial_CS, header.initial_IP,
+                                    header.relocation_table_pos,
+                                    header.overlay,
+                                    header.new_header_offset);
+    outstream << buffer;
+#endif
 }
 
 void dump_exe_info(const ExeInfo &exe_info, std::ostream &outstream = std::cout)

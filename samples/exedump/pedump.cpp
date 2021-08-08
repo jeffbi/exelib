@@ -4,9 +4,15 @@
 /// \author Jeff Bienstadt
 ///
 
+#include <version>
 #include <ctime>
+#if defined(__cpp_lib_format)
 #include <format>
+#else
+#include <cstdio>
+#endif
 #include <ostream>
+#include <string>
 
 #include <PEExe.h>
 
@@ -112,6 +118,7 @@ void dump_header(PeExeHeader header, std::ostream &outstream)
         {PeExeHeader::Characteristics::BYTES_REVERSED_HI, "BYTES_REVERSED_HI"},
     };
 
+#if !defined(__cpp_lib_format)
     const char *format_string = 
         "New PE header\n-------------------------------------------\n"
         "Signature:             0x{:08X}\n"
@@ -131,6 +138,34 @@ void dump_header(PeExeHeader header, std::ostream &outstream)
                              header.num_symbols,
                              header.optional_header_size,
                              header.characteristics);
+#else
+    char buffer[1024];
+    const char *format_string = 
+        "New PE header\n-------------------------------------------\n"
+        "Signature:             0x%08X\n"
+        "Target machine:            0x%04hX %s\n"
+        "Number of sections:    %10hu\n"
+        "Timestamp              %s\n"
+        "Symbol Table offset:   0x%08X\n"
+        "Number of symbols:     %10u\n"
+        "Optional header size:  %10hu\n"
+        "Characteristics:           0x%04hX ";
+#if defined(_MSC_VER)
+    sprintf_s(buffer, sizeof(buffer), format_string,
+#else
+    std::sprintf(buffer, format_string,
+#endif
+                         header.signature,
+                         header.target_machine, get_target_machine_string(header.target_machine).c_str(),
+                         header.num_sections,
+                         format_timestamp(header.timestamp).c_str(),
+                         header.symbol_table_offset,
+                         header.num_symbols,
+                         header.optional_header_size,
+                         header.characteristics);
+    outstream << buffer;
+#endif
+
     // list characteristics
     for (auto &&pair : characteristics)
         if (header.characteristics & pair.first)

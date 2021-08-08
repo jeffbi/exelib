@@ -4,8 +4,14 @@
 /// \author Jeff Bienstadt
 ///
 
+#include <version>
+#if defined(__cpp_lib_format)
 #include <format>
+#else
+#include <cstdio>
+#endif
 #include <ostream>
+#include <string>
 
 #include <NEExe.h>
 
@@ -20,8 +26,20 @@ size_t dump_ne_names(const NeExeInfo::NameContainer &names, std::ostream &outstr
 {
     if (names.size())
         for (const auto &name : names)
+#if defined(__cpp_lib_format)
             outstream << std::format("Ordinal: 0x{:04X}  Name: {}\n", name.ordinal, name.name);
-
+#else
+        {
+            char buffer[300];
+#if defined(_MSC_VER)
+            sprintf_s(buffer, sizeof(buffer),
+#else
+            sprintf(buffer,
+#endif
+                        "Ordinal: 0x%04hX  Name: %s\n",
+                        name.ordinal, name.name.c_str());
+        }
+#endif
     return names.size();
 }
 
@@ -56,7 +74,20 @@ const std::string get_exe_target(uint8_t type)
         case static_cast<uint8_t>(NeExeType::PharLap_Win):
             return "PharLap 286|DOS-Extender, Windows";
         default:
+        {
+#if defined(__cpp_lib_format)
             return std::format("0x{:02X}", type);
+#else
+            char buffer[8];
+#if defined(_MSC_VER)
+            sprintf_s(buffer, sizeof(buffer),
+#else
+            sprintf(buffer,
+#endif
+                    "0x%02hhX", type);
+            return buffer;
+#endif
+        }
     }
 }
 
@@ -70,21 +101,47 @@ void dump_header(const NeExeInfo &info, std::ostream &outstream)
     outstream << "New NE header\n-------------------------------------------\n";
 
     const NeExeHeader &header = info.header();
+
+#if defined(__cpp_lib_format)
     outstream << std::format("{}                            {}\n", header.flags & 0x8000 ? "Library:" : "Module: ", info.module_name());
     outstream << std::format("Description:                        {}\n", info.module_description());
+#else
+    char buffer[2048];
+#if defined(_MSC_VER)
+    sprintf_s(buffer, sizeof(buffer),
+#else
+    sprintf(buffer,
+#endif
+            "%s                            %s\n", header.flags & 0x8000 ? "Library:" : "Module: ", info.module_name().c_str());
+    outstream << buffer;
+    outstream << "Description:                        " << info.module_description() << '\n';
+#endif
 
     if (header.executable_type == static_cast<uint8_t>(NeExeType::Windows))
+#if defined(__cpp_lib_format)
         outstream << std::format("Expected Windows version:           {}.{}\n\n",
                                  (header.expected_win_version >> 8) & 0xFF,
                                  header.expected_win_version & 0xFF);
+#else
+#if defined(_MSC_VER)
+    sprintf_s(buffer, sizeof(buffer),
+#else
+    sprintf(buffer,
+#endif
+            "Expected Windows version:           %hu.%hu\n\n",
+            (header.expected_win_version >> 8) & 0xFF,
+            header.expected_win_version & 0xFF);
+    outstream << buffer;
+#endif
 
+#if defined(__cpp_lib_format)
     const char *format_string =
         "Signature:                          0x{:04X}\n"
         "Linker version:                        {:3}\n"
         "Linker revision:                       {:3}\n"
         "Entry Table offset:                 0x{:04X}\n"
         "Entry table size (bytes):            {:5}\n"
-        "Checksum:                           0x{:04X}\n"
+        "Checksum:                           0x{:08X}\n"
         "Flags:                              0x{:04X}\n"
         "Automatic data segment:             0x{:04X}\n"
         "Heap size:                          0x{:04X}\n"
@@ -138,6 +195,75 @@ void dump_header(const NeExeInfo &info, std::ostream &outstream)
                              header.gangload_offset,
                              header.gangload_size,
                              header.min_code_swap_size);
+#else
+
+    const char *format_string =
+        "Signature:                          0x%04hX\n"
+        "Linker version:                        %3hhu\n"
+        "Linker revision:                       %3hhu\n"
+        "Entry Table offset:                 0x%04hX\n"
+        "Entry table size (bytes):            %5hu\n"
+        "Checksum:                           0x%04hX\n"
+        "Flags:                              0x%04hX\n"
+        "Automatic data segment:             0x%04hX\n"
+        "Heap size:                          0x%04hX\n"
+        "Stack size:                         0x%04hX\n"
+        "Initial SS : SP:           0x%04hX : 0x%04hX\n"
+        "Initial CS : IP:           0x%04hX : 0x%04hX\n"
+        "Entries in Segment Table:            %5hu\n"
+        "Entries in Module Table:             %5hu\n"
+        "Non-resident Name Table size (bytes):%5hu\n"
+        "Segment Table offset:               0x%04hX\n"
+        "Resource Table offset:              0x%04hX\n"
+        "Resident Name Table offset:         0x%04hX\n"
+        "Module Table offset:                0x%04hX\n"
+        "Import Table offset:                0x%04hX\n"
+        "Non-resident Name Table position:   0x%08X\n"
+        "Number of movable entries:           %5hu\n"
+        "Alignment shift count:               %5hu\n"
+        "Number of Resource Table entries:    %5hu\n"
+        "Executable Type:                    %s\n"
+        "Additional Flags:                   0x%04hX\n"
+        "Gangload offset:                    0x%04hX\n"
+        "Gangload size:                      0x%04hX\n"
+        "Minimum code swap size:              %5hu\n";
+#if defined(_MSC_VER)
+    sprintf_s(buffer, sizeof(buffer),
+#else
+    sprintf(buffer,
+#endif
+            format_string,
+            header.signature,
+            header.linker_version,
+            header.linker_revision,
+            header.entry_table_offset,
+            header.entry_table_size,
+            header.checksum,
+            header.flags,
+            header.auto_data_segment,
+            header.inital_heap,
+            header.initial_stack,
+            header.initial_SS, header.initial_SP,
+            header.initial_CS, header.initial_IP,
+            header.num_segment_entries,
+            header.num_module_entries,
+            header.non_res_name_table_size,
+            header.segment_table_offset,
+            header.resource_table_offset,
+            header.res_name_table_offset,
+            header.module_table_offset,
+            header.import_table_offset,
+            header.non_res_name_table_pos,
+            header.num_movable_entries,
+            header.alignment_shift_count,
+            header.num_resource_entries,
+            get_exe_target(header.executable_type).c_str(),
+            header.additional_flags,
+            header.gangload_offset,
+            header.gangload_size,
+            header.min_code_swap_size);
+    outstream << buffer;
+#endif
 }
 
 // This function requires some intimate knowlege of what the entry table
@@ -177,7 +303,18 @@ void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outst
                     uint16_t    offset = *reinterpret_cast<const uint16_t *>(ptr);
                     ptr += sizeof(uint16_t);
 
+#if defined(__cpp_lib_format)
                     outstream << std::format("Ordinal 0x{:04X}  Segment 0x{:02X}  Offset 0x{:04X}    ", ordinal, segment, offset);
+#else
+                    char buffer[80];
+#if defined(_MSC_VER)
+                    sprintf_s(buffer, sizeof(buffer),
+#else
+                    std::sprintf(buffer,
+#endif
+                                "Ordinal 0x%04hX  Segment 0x%02hhX  Offset 0x%04hX    ", ordinal, segment, offset);
+                    outstream << buffer;
+#endif
                     outstream << "MOVEABLE";
                     if (flags & 0x01)
                         outstream << " EXPORTED";
@@ -195,7 +332,18 @@ void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outst
                     uint16_t    offset = *reinterpret_cast<const uint16_t *>(ptr);
                     ptr += sizeof(uint16_t);
 
+#if defined(__cpp_lib_format)
                     outstream << std::format("Ordinal 0x{:04X}  Segment 0x{:02X}  Offset 0x{:04X}    ", ordinal, indicator, offset);
+#else
+                    char buffer[80];
+#if defined(_MSC_VER)
+                    sprintf_s(buffer, sizeof(buffer),
+#else
+                    std::sprintf(buffer,
+#endif
+                                "Ordinal 0x%04hX  Segment 0x%02hhX  Offset 0x%04hX}    ", ordinal, indicator, offset);
+                    outstream << buffer;
+#endif
                     outstream << "FIXED";
                     if (flags & 0x01)
                         outstream << " EXPORTED";
@@ -226,13 +374,35 @@ void dump_segment_table(const NeExeInfo::SegmentContainer &table, uint16_t align
 
             auto sector_offset = static_cast<uint16_t>(entry.sector) << align;
 
+#if defined(__cpp_lib_format)
             outstream << std::format("{:4}  Sector offset: 0x{:08X}  Length: 0x{:04X}  Min. alloc size: 0x{:04X}  ",
                                      entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE",
                                      sector_offset,
                                      entry.length,
                                      entry.min_alloc);
-            //std::string flags_string{entry.flags & NeSegmentEntry::Preload ? "PRELOAD" : ""};
             std::string flags_string{std::format("Flags: 0x{:04X}{}", entry.flags, entry.flags & NeSegmentEntry::Preload ? " PRELOAD" : "")};
+#else
+            char buffer[80];
+#if defined(_MSC_VER)
+            sprintf_s(buffer, sizeof(buffer),
+#else
+            std::sprintf(buffer,
+#endif
+                        "%4s  Sector offset: 0x%08X  Length: 0x%04hX  Min. alloc size: 0x%04hX  ",
+                                     entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE",
+                                     sector_offset,
+                                     entry.length,
+                                     entry.min_alloc);
+            outstream << buffer;
+#if defined(_MSC_VER)
+            sprintf_s(buffer, sizeof(buffer),
+#else
+            std::sprintf(buffer,
+#endif
+                         "Flags: 0x%04hX%s", entry.flags, entry.flags & NeSegmentEntry::Preload ? " PRELOAD" : "");
+            std::string flags_string{buffer};
+#endif
+
             if (entry.flags & NeSegmentEntry::RelocInfo)
             {
                 if (flags_string.size())
@@ -266,21 +436,55 @@ void dump_resource_table(const NeExeInfo::ResourceContainer &resources, uint16_t
     outstream << "Resources\n-------------------------------------------\n";
     if (resources.size())
     {
-        outstream << std::format("{} resource types:\n", resources.size());
+        outstream << resources.size() << " resource types:\n";
 
         for (const auto &resource : resources)
         {
+#if defined(__cpp_lib_format)
             outstream << std::format("    Resource Type: {:>15}\n", resource.type_name);
             outstream << std::format("    Count:                   {:5}\n", resource.count);
+#else
+            char buffer[1024];
+#if defined(_MSC_VER)
+            sprintf_s(buffer, sizeof(buffer),
+#else
+            std::sprintf(buffer,
+#endif
+                        "    Resource Type: %-15s\n", resource.type_name.c_str());
+            outstream << buffer;
+#if defined(_MSC_VER)
+            sprintf_s(buffer, sizeof(buffer),
+#else
+            std::sprintf(buffer,
+#endif
+                        "    Count:                   %5uh\n", resource.count);
+            outstream << buffer;
+#endif
             for (const auto &info : resource.info)
             {
                 outstream << "      " << info.name << '\n';
+#if defined(__cpp_lib_format)
                 outstream << std::format("        Location:       0x{:08X}\n"
                                          "        Size:                {:5}\n"
                                          "        Flags:          0x{:08X} ",  //TODO: Expand flags!!!
                                          info.offset << shift_count,
                                          info.length << shift_count,
                                          info.flags);
+#else
+#if defined(_MSC_VER)
+            sprintf_s(buffer, sizeof(buffer),
+#else
+            std::sprintf(buffer,
+#endif
+                        "        Location:       0x%08X\n"
+                        "        Size:                %5u\n"
+                        "        Flags:              0x%04hX ",  //TODO: Expand flags!!!
+                        info.offset << shift_count,
+                        info.length << shift_count,
+                        info.flags);
+            outstream << buffer;
+#endif
+
                 if (info.flags & 0x10)
                     outstream << "MOVEABLE ";
                 if (info.flags & 0x20)

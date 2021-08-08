@@ -73,9 +73,10 @@ and I want to make that as painless as possible.
 ### C++ Standards
 The library and samples are written using portable Modern C++.
 The library itself and the `fntextract` sample both compile with C++14
-or higher. The `exedump` sample uses the `format` library from C++20.
-
-
+or higher. The `exedump` sample uses the `format` library, if it's available,
+from C++20. There are still compilers that have not implemented the `format`
+portion of the library, and for those there are `sprintf` versions of the
+output formatting in `exedump`.
 
 ## License
 The library and samples are released under the MIT license. See the file LICENSE.txt

@@ -1,6 +1,6 @@
 /// \file   pedump.cpp
 /// Implementation of the function to dump a PE-style portable executable
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
@@ -118,8 +118,8 @@ void dump_header(PeExeHeader header, std::ostream &outstream)
         {PeExeHeader::Characteristics::BYTES_REVERSED_HI, "BYTES_REVERSED_HI"},
     };
 
-#if !defined(__cpp_lib_format)
-    const char *format_string = 
+#if defined(__cpp_lib_format)
+    const char *format_string =
         "New PE header\n-------------------------------------------\n"
         "Signature:             0x{:08X}\n"
         "Target machine:        0x{:04X} {}\n"
@@ -140,7 +140,7 @@ void dump_header(PeExeHeader header, std::ostream &outstream)
                              header.characteristics);
 #else
     char buffer[1024];
-    const char *format_string = 
+    const char *format_string =
         "New PE header\n-------------------------------------------\n"
         "Signature:             0x%08X\n"
         "Target machine:            0x%04hX %s\n"

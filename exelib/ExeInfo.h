@@ -1,6 +1,6 @@
 /// \file   ExeInfo.h
 /// Classes and structures describing the NE section of a new-style executable.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
@@ -14,7 +14,7 @@
 #include "MZExe.h"
 #include "NEExe.h"
 #include "PEExe.h"
-#include "ReadStream.h"
+#include "readstream.h"
 
 /// \brief  Possible values for the type of executable.
 enum class ExeType
@@ -30,10 +30,10 @@ enum class ExeType
 
 /// \brief  The executable file as a whole.
 ///         Contains data from the MZ header as well as from any "new" sections.
-/// 
+///
 /// \c ExeInfo is the core object type for the exelib library. To explore an
 /// executable, construct an \c ExeInfo object with an \c std::istream instance.
-/// 
+///
 class ExeInfo
 {
 public:
@@ -116,7 +116,7 @@ public:
 
 private:
     ExeType                     _type{ExeType::Unknown};    // the type of the executable: MZ, NE, PE, etc.
-    MzExeInfo                   _mz_info;   
+    MzExeInfo                   _mz_info;
     std::unique_ptr<NeExeInfo>  _ne_info;        // "New" NE part. Might not exist, particularly for modern PE-style or old MS-DOS executables.
     std::unique_ptr<PeExeInfo>  _pe_info;        // Newer PE part. Might not exist, if the executable is old or REALLY old.
 };

@@ -44,6 +44,8 @@ void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
         "Initial CS : IP:           0x{:04X} : 0x{:04X}\n"
         "Relocation Table position:          0x{:04X}\n"
         "Overlay:                             {:5}\n"
+        "OEM ID:                             0x{:04X}\n"
+        "OEM info:                           0x{:04X}\n"
         "New header offset:              0x{:08X}\n";
 
     outstream << std::format(format_string,
@@ -59,6 +61,8 @@ void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
                              header.initial_CS, header.initial_IP,
                              header.relocation_table_pos,
                              header.overlay,
+                             header.oem_ID,
+                             header.oem_info,
                              header.new_header_offset);
 #else
     char buffer[1024];
@@ -76,6 +80,8 @@ void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
         "Initial CS : IP:           0x%04hX : 0x%04hX\n"
         "Relocation Table position:          0x%04hX\n"
         "Overlay:                             %5hu\n"
+        "OEM ID:                             0x%04hX\n"
+        "OEM info:                           0x%04hX\n"
         "New header offset:              0x%08X\n";
 
 #if defined(_MSC_VER)
@@ -95,6 +101,8 @@ void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
                                     header.initial_CS, header.initial_IP,
                                     header.relocation_table_pos,
                                     header.overlay,
+                                    header.oem_ID,
+                                    header.ome_info,
                                     header.new_header_offset);
     outstream << buffer;
 #endif

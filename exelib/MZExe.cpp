@@ -36,12 +36,18 @@ void MzExeInfo::load_header(std::istream &stream)
     read(stream, &_header.overlay);
     if (_header.relocation_table_pos == 0x40)
     {
-        read(stream, &_header.reserved);
+        read(stream, &_header.reserved1);
+        read(stream, &_header.oem_ID);
+        read(stream, &_header.oem_info);
+        read(stream, &_header.reserved2);
         read(stream, &_header.new_header_offset);
     }
     else    // This is an OLD exe file. Nothing after the old exe header is useful.
     {
-        memset(_header.reserved, 0, sizeof(_header.reserved));
+        memset(_header.reserved1, 0, sizeof(_header.reserved1));
+        _header.oem_ID = 0;
+        _header.oem_info = 0;
+        memset(_header.reserved2, 0, sizeof(_header.reserved2));
         _header.new_header_offset = 0;
     }
 }

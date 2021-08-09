@@ -29,7 +29,10 @@ struct MzExeHeader
     /* 16 */    uint16_t    initial_CS;             // relocatable segment address for CS
     /* 18 */    uint16_t    relocation_table_pos;   // absolute offset to the relocation table
     /* 1A */    uint16_t    overlay;                // value used for overlay management. zero indicates main executable
-    /* 1C */    uint16_t    reserved[16];
+    /* 1C */    uint16_t    reserved1[4];
+    /* 24 */    uint16_t    oem_ID;
+    /* 26 */    uint16_t    oem_info;
+    /* 28 */    uint16_t    reserved2[10];
     /* 3C */    uint32_t    new_header_offset;      // might be any of NE, LE, LX, or PE header, or nothing
 
     static constexpr uint16_t   mz_signature{0x5A4D};

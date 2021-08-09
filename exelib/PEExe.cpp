@@ -5,7 +5,7 @@
 ///
 
 #include <istream>
-#include <memory>
+//#include <memory>
 
 #include "PEExe.h"
 #include "readstream.h"

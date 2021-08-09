@@ -21,6 +21,9 @@ namespace {
 // Helper to format a timestamp (from the PE header) into a string for output.
 std::string format_timestamp(uint32_t timestamp)
 {
+    if (timestamp == 0 || timestamp == 0xFFFFFFFF)
+        return "";
+
     time_t  tt = timestamp;
     char    buf[60];
 #if defined(_MSC_VER)   // the Microsoft compiler insists that you use their gmtime_s function, or it generates a compiler error. Bah!
@@ -122,13 +125,13 @@ void dump_header(PeExeHeader header, std::ostream &outstream)
     const char *format_string =
         "New PE header\n-------------------------------------------\n"
         "Signature:             0x{:08X}\n"
-        "Target machine:        0x{:04X} {}\n"
+        "Target machine:            0x{:04X} {}\n"
         "Number of sections:    {:10}\n"
         "Timestamp              {}\n"
         "Symbol Table offset:   0x{:08X}\n"
         "Number of symbols:     {:10}\n"
         "Optional header size:  {:10}\n"
-        "Characteristics:       0x{:04X} ";
+        "Characteristics:           0x{:04X} ";
     outstream << std::format(format_string,
                              header.signature,
                              header.target_machine, get_target_machine_string(header.target_machine),

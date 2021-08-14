@@ -6,11 +6,6 @@
 
 #include <version>
 #include <ctime>
-#if defined(__cpp_lib_format)
-#include <format>
-#else
-#include <cstdio>
-#endif
 #include <iomanip>
 #include <ostream>
 #include <string>
@@ -154,53 +149,15 @@ void dump_header(const PeImageFileHeader &header, std::ostream &outstream)
         {PeImageFileHeader::Characteristics::BytesReversedHI, "BYTES_REVERSED_HI"},
     };
 
-#if defined(__cpp_lib_format)
-    const char *format_string =
-        "New PE header\n-------------------------------------------\n"
-        "Signature:             0x{:08X}\n"
-        "Target machine:            0x{:04X} {}\n"
-        "Number of sections:    {:10}\n"
-        "Timestamp              {}\n"
-        "Symbol Table offset:   0x{:08X}\n"
-        "Number of symbols:     {:10}\n"
-        "Optional header size:  {:10}\n"
-        "Characteristics:           0x{:04X} ";
-    outstream << std::format(format_string,
-                             header.signature,
-                             header.target_machine, get_target_machine_string(header.target_machine),
-                             header.num_sections,
-                             format_timestamp(header.timestamp),
-                             header.symbol_table_offset,
-                             header.num_symbols,
-                             header.optional_header_size,
-                             header.characteristics);
-#else
-    char buffer[1024];
-    const char *format_string =
-        "New PE header\n-------------------------------------------\n"
-        "Signature:             0x%08X\n"
-        "Target machine:            0x%04hX %s\n"
-        "Number of sections:    %10hu\n"
-        "Timestamp              %s\n"
-        "Symbol Table offset:   0x%08X\n"
-        "Number of symbols:     %10u\n"
-        "Optional header size:  %10hu\n"
-        "Characteristics:           0x%04hX ";
-#if defined(_MSC_VER)
-    sprintf_s(buffer, sizeof(buffer), format_string,
-#else
-    std::sprintf(buffer, format_string,
-#endif
-                         header.signature,
-                         header.target_machine, get_target_machine_string(header.target_machine).c_str(),
-                         header.num_sections,
-                         format_timestamp(header.timestamp).c_str(),
-                         header.symbol_table_offset,
-                         header.num_symbols,
-                         header.optional_header_size,
-                         header.characteristics);
-    outstream << buffer;
-#endif
+    outstream << "New PE header\n-------------------------------------------\n";
+    outstream << "Signature:             0x" << HexVal(header.signature) << '\n';
+    outstream << "Target machine:            0x" << HexVal(header.target_machine) << ' ' << get_target_machine_string(header.target_machine) << '\n';
+    outstream << "Number of sections:    " << std::setw(10) << header.num_sections << '\n';
+    outstream << "Timestamp              " << format_timestamp(header.timestamp) << '\n';
+    outstream << "Symbol Table offset:   0x" << HexVal(header.symbol_table_offset) << '\n';
+    outstream << "Number of symbols:'    " << std::setw(10) << header.num_symbols << '\n';
+    outstream << "Optional Header size:  " << std::setw(10) << header.optional_header_size << '\n';
+    outstream << "Characteristics:           0x" << HexVal(header.characteristics) << ' ';
 
     // list characteristics
     for (const auto &pair : characteristics)
@@ -212,7 +169,6 @@ void dump_header(const PeImageFileHeader &header, std::ostream &outstream)
 
 void dump_optional_header_base(const PeOptionalHeaderBase &header, std::ostream &stream)
 {
-    stream.fill('*');
     stream << "Magic number:                     0x" << HexVal{header.magic} << '\n';
     stream << "Linker version major:         " << std::setw(10) << static_cast<uint32_t>(header.linker_version_major) << '\n';
     stream << "Linker version minor:         " << std::setw(10) << static_cast<uint32_t>(header.linker_version_minor) << '\n';
@@ -265,6 +221,7 @@ std::string get_subsystem_name(uint16_t subsystem)
     }
 }
 
+// Helper to make the DLL characteristics member of the PE optional header into a string for output.
 std::string get_dll_characteristics_string(uint16_t characteristics)
 {
     using ut = std::underlying_type<PeDllCharacteristics>::type;
@@ -325,9 +282,6 @@ void dump_optional_header_common(const T &header, std::ostream &stream)
     stream << "Heap Commit Size:   " << std::setw(20) << header.size_of_heap_commit << '\n';
     stream << "Loader Flags:                 0x" << HexVal{header.loader_flags} << '\n';
     stream << "Number of RVA And Sizes:      " << std::setw(10) << header.num_rva_and_sizes << '\n';
-#if defined(__cpp_lib_format)
-#else
-#endif
 }
 
 void dump_optional_header(const PeOptionalHeader32 &header, std::ostream &stream)

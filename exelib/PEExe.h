@@ -12,8 +12,6 @@
 #include <iosfwd>
 #include <memory>
 
-#include "readstream.h"
-
 /// \brief  Describes the PE-style header
 struct PeImageFileHeader
 {
@@ -182,35 +180,7 @@ public:
     /// \brief  Construct a \c PeExeInfo object from a stream.
     /// \param stream           The input stream from which to read.
     /// \param header_location  Position in the file at which the PE portion begins.
-    PeExeInfo(std::istream &stream, size_t header_location)
-      : _header_position{header_location}
-    {
-        load_image_file_header(stream);
-
-        if (_pe_image_file_header.optional_header_size != 0)    // should be zero only for object files, never for image files.
-        {
-            uint16_t magic;
-            read(stream, &magic);
-            stream.seekg(-static_cast<int>(sizeof(magic)), std::ios::cur);
-
-            if (magic == 0x010B)        // 32-bit optional header
-            {
-                _pe_optional_32 = std::make_unique<PeOptionalHeader32>();
-                load_optional_header_32(stream);
-            }
-            else if (magic == 0x020B)   // 64-bit optional header
-            {
-                _pe_optional_64 = std::make_unique<PeOptionalHeader64>();
-                load_optional_header_64(stream);
-            }
-            else                        // unrecognized optional header type
-            {
-                //TODO: Indicate an error? Throw?
-            }
-
-        }
-        //TODO: Load more here!!!
-    }
+    PeExeInfo(std::istream &stream, size_t header_location);
 
     /// \brief  Return the file position of the PE header.
     size_t header_position() const noexcept

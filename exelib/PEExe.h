@@ -12,8 +12,10 @@
 #include <iosfwd>
 #include <memory>
 
+#include "readstream.h"
+
 /// \brief  Describes the PE-style header
-struct PeExeHeader
+struct PeImageFileHeader
 {
     uint32_t	signature;				// PE\0\0 = 0x00004550
     uint16_t	target_machine;			// number that identifies the type of target machine; see MachineType enum
@@ -26,87 +28,151 @@ struct PeExeHeader
 
     static constexpr uint32_t   pe_signature{0x00004550};
 
-    enum MachineType
-    {
-        UNKNOWN     = 0x0,      // The contents of this field are assumed to be applicable to any machine type
-        AM33        = 0x1d3,    // Matsushita AM33
-        AMD64       = 0x8664,   // x64
-        ARM         = 0x1c0,    // ARM little endian
-        ARM64       = 0xaa64,   // ARM64 little endian
-        ARMNT       = 0x1c4,    // ARM Thumb-2 little endian
-        EBC         = 0xebc,    // EFI byte code
-        I386        = 0x14c,    // Intel 386 or later processors and compatible processors
-        IA64        = 0x200,    // Intel Itanium processor family
-        M32R        = 0x9041,   // Mitsubishi M32R little endian
-        MIPS16      = 0x266,    // MIPS16
-        MIPSFPU     = 0x366,    // MIPS with FPU
-        MIPSFPU16   = 0x466,    // MIPS16 with FPU
-        POWERPC     = 0x1f0,    // Power PC little endian
-        POWERPCFP   = 0x1f1,    // Power PC with floating point support
-        R4000       = 0x166,    // MIPS little endian
-        RISCV32     = 0x5032,   // RISC-V 32-bit address space
-        RISCV64     = 0x5064,   // RISC-V 64-bit address space
-        RISCV128    = 0x5128,   // RISC-V 128-bit address space
-        SH3         = 0x1a2,    // Hitachi SH3
-        SH3DSP      = 0x1a3,    // Hitachi SH3 DSP
-        SH4         = 0x1a6,    // Hitachi SH4
-        SH5         = 0x1a8,    // Hitachi SH5
-        THUMB       = 0x1c2,    // Thumb
-        WCEMIPSV2   = 0x169     // MIPS little-endian WCE v2
-    };
-
     enum Characteristics
     {
-        RELOCS_STRIPPED             = 0x0001,   // image only; WinCE and NT and higher; indicates the file does not contain base relocations and must therefore be loaded at its preferred base address.
-        EXECUTABLE_IMAGE            = 0x0002,   // image only; indicates the image file is valid and can be run; if not set, indicates a linker error.
-        LINE_NUMS_STRIPPED          = 0x0004,   // COFF line numbers have been removed. This flag is deprecated and should be zero.
-        LOCAL_SYMS_STRIPPED         = 0x0008,   // COFF symbol table entries for local symbols have been removed. This flag is deprecated and should be zero.
-        AGGRESSIVE_WS_TRIM          = 0x0010,   // Obsolete. Aggressively trim working set. This flag is deprecated for Windows 2000 and later and must be zero.
-        LARGE_ADDRESS_AWARE         = 0x0020,   // Application can handle > 2 GB addresses.
-        //                          = 0x0040,   // This flag is reserved for future use.
-        BYTES_REVERSED_LO           = 0x0080,   // Little endian: the least significant bit (LSB) precedes the most significant bit (MSB) in memory. This flag is deprecated and should be zero.
-        MACHINE_32BIT               = 0x0100,   // Machine is based on a 32-bit-word architecture.
-        DEBUG_STRIPPED              = 0x0200,   // Debugging information is removed from the image file.
-        REMOVABLE_RUN_FROM_SWAP     = 0x0400,   // If the image is on removable media, fully load it and copy it to the swap file.
-        NET_RUN_FROM_SWAP           = 0x0800,   // If the image is on network media, fully load it and copy it to the swap file.
-        SYSTEM                      = 0x1000,   // The image file is a system file, not a user program.
-        DLL                         = 0x2000,   // The image file is a dynamic-link library (DLL). Such files are considered executable files for almost all purposes, although they cannot be directly run.
-        UP_SYSTEM_ONLY	            = 0x4000,   // The file should be run only on a uniprocessor machine.
-        BYTES_REVERSED_HI	        = 0x8000    // Big endian: the MSB precedes the LSB in memory. This flag is deprecated and should be zero.
+        RelocsStripped          = 0x0001,   // image only; WinCE and NT and higher; indicates the file does not contain base relocations and must therefore be loaded at its preferred base address.
+        ExecutableImage         = 0x0002,   // image only; indicates the image file is valid and can be run; if not set, indicates a linker error.
+        LineNumsStripped        = 0x0004,   // COFF line numbers have been removed. This flag is deprecated and should be zero.
+        LocalSymsStripped       = 0x0008,   // COFF symbol table entries for local symbols have been removed. This flag is deprecated and should be zero.
+        AggressiveWsTrim        = 0x0010,   // Obsolete. Aggressively trim working set. This flag is deprecated for Windows 2000 and later and must be zero.
+        LargeAddressAware       = 0x0020,   // Application can handle > 2 GB addresses.
+        //                      = 0x0040,   // This flag is reserved for future use.
+        BytesReversedLO         = 0x0080,   // Little endian: the least significant bit (LSB) precedes the most significant bit (MSB) in memory. This flag is deprecated and should be zero.
+        Machine32Bit            = 0x0100,   // Machine is based on a 32-bit-word architecture.
+        DebugStripped           = 0x0200,   // Debugging information is removed from the image file.
+        RemovableRunFromSwap    = 0x0400,   // If the image is on removable media, fully load it and copy it to the swap file.
+        NetRunFromSwap          = 0x0800,   // If the image is on network media, fully load it and copy it to the swap file.
+        System                  = 0x1000,   // The image file is a system file, not a user program.
+        DLL                     = 0x2000,   // The image file is a dynamic-link library (DLL). Such files are considered executable files for almost all purposes, although they cannot be directly run.
+        UPSystemOnly	        = 0x4000,   // The file should be run only on a uniprocessor machine.
+        BytesReversedHI	        = 0x8000    // Big endian: the MSB precedes the LSB in memory. This flag is deprecated and should be zero.
     };
 };
 
-struct Pe32OptionalHeader {
-    uint16_t mMagic;                        // 0x010b - PE32, 0x020b - PE32+ (64 bit)
+enum class PeMachineType : uint16_t
+{
+    Unknown     = 0x0000,   // The contents of this field are assumed to be applicable to any machine type
+    AM33        = 0x01D3,   // Matsushita AM33
+    AMD64       = 0x8664,   // x64
+    ARM         = 0x01C0,   // ARM little endian
+    ARM64       = 0xAA64,   // ARM64 little endian
+    ARMNT       = 0x01C4,   // ARM Thumb-2 little endian
+    EBC         = 0x0EBC,   // EFI byte code
+    I386        = 0x014C,   // Intel 386 or later processors and compatible processors
+    IA64        = 0x0200,   // Intel Itanium processor family
+    M32R        = 0x9041,   // Mitsubishi M32R little endian
+    MIPS16      = 0x0266,   // MIPS16
+    MIPSFPU     = 0x0366,   // MIPS with FPU
+    MIPSFPU16   = 0x0466,   // MIPS16 with FPU
+    PowerPC     = 0x01F0,   // Power PC little endian
+    PowerPCFP   = 0x01F1,   // Power PC with floating point support
+    R4000       = 0x0166,   // MIPS little endian
+    RISCV32     = 0x5032,   // RISC-V 32-bit address space
+    RISCV64     = 0x5064,   // RISC-V 64-bit address space
+    RISCV128    = 0x5128,   // RISC-V 128-bit address space
+    SH3         = 0x01A2,   // Hitachi SH3
+    SH3DSP      = 0x01A3,   // Hitachi SH3 DSP
+    SH4         = 0x01A6,   // Hitachi SH4
+    SH5         = 0x01A8,   // Hitachi SH5
+    Thumb       = 0x01C2,   // Thumb
+    WCEMIPSv2   = 0x0169    // MIPS little-endian WCE v2
+};
+
+struct PeOptionalHeaderBase
+{
+    uint16_t magic;                 // 0x010B - PE32, 0x020B - PE32+ (64 bit)
     uint8_t  linker_version_major;
     uint8_t  linker_version_minor;
     uint32_t code_size;
     uint32_t initialized_data_size;
-    uint32_t Uninitialized_data_size;
-    uint32_t mAddressOfEntryPoint;
-    uint32_t mBaseOfCode;
-    uint32_t mBaseOfData;
-    uint32_t mImageBase;
-    uint32_t mSectionAlignment;
-    uint32_t mFileAlignment;
-    uint16_t mMajorOperatingSystemVersion;
-    uint16_t mMinorOperatingSystemVersion;
-    uint16_t mMajorImageVersion;
-    uint16_t mMinorImageVersion;
-    uint16_t mMajorSubsystemVersion;
-    uint16_t mMinorSubsystemVersion;
-    uint32_t mWin32VersionValue;
-    uint32_t mSizeOfImage;
-    uint32_t mSizeOfHeaders;
-    uint32_t mCheckSum;
-    uint16_t mSubsystem;
-    uint16_t mDllCharacteristics;
-    uint32_t mSizeOfStackReserve;
-    uint32_t mSizeOfStackCommit;
-    uint32_t mSizeOfHeapReserve;
-    uint32_t mSizeOfHeapCommit;
-    uint32_t mLoaderFlags;
-    uint32_t mNumberOfRvaAndSizes;
+    uint32_t uninitialized_data_size;
+    uint32_t address_of_entry_point;
+    uint32_t base_of_code;
+};
+
+struct PeOptionalHeader32 : public PeOptionalHeaderBase
+{
+    uint32_t base_of_data;
+    uint32_t image_base;
+    uint32_t section_alignment;
+    uint32_t file_alignment;
+    uint16_t os_version_major;
+    uint16_t os_version_minor;
+    uint16_t image_version_major;
+    uint16_t image_version_minor;
+    uint16_t subsystem_version_major;
+    uint16_t subsystem_version_minor;
+    uint32_t win32_version_value;
+    uint32_t size_of_image;
+    uint32_t size_of_headers;
+    uint32_t checksum;
+    uint16_t subsystem;
+    uint16_t dll_characteristics;
+    uint32_t size_of_stack_reserve;
+    uint32_t size_of_stack_commit;
+    uint32_t size_of_heap_reserve;
+    uint32_t size_of_heap_commit;
+    uint32_t loader_flags;
+    uint32_t num_rva_and_sizes;
+};
+
+struct PeOptionalHeader64 : public PeOptionalHeaderBase
+{
+    uint64_t image_base;
+    uint32_t section_alignment;
+    uint32_t file_alignment;
+    uint16_t os_version_major;
+    uint16_t os_version_minor;
+    uint16_t image_version_major;
+    uint16_t image_version_minor;
+    uint16_t subsystem_version_major;
+    uint16_t subsystem_version_minor;
+    uint32_t win32_version_value;
+    uint32_t size_of_image;
+    uint32_t size_of_headers;
+    uint32_t checksum;
+    uint16_t subsystem;
+    uint16_t dll_characteristics;
+    uint64_t size_of_stack_reserve;
+    uint64_t size_of_stack_commit;
+    uint64_t size_of_heap_reserve;
+    uint64_t size_of_heap_commit;
+    uint32_t loader_flags;
+    uint32_t num_rva_and_sizes;
+};
+
+enum class PeSubsystem : uint16_t
+{
+    Unknown                 = 0,    // An unknown subsystem
+    Native                  = 1,    // Device drivers and native Windows processes
+    Windows_GUI             = 2,    // The Windows graphical user interface (GUI) subsystem
+    Windows_CUI             = 3,    // The Windows character subsystem
+    OS2_CUI                 = 5,    // The OS/2 character subsystem
+    Posix_CUI               = 7,    // The Posix character subsystem
+    NativeWindows           = 8,    // Native Win9x driver
+    WindowsCE_GUI           = 9,    // Windows CE
+    EfiApplication          = 10,   // An Extensible Firmware Interface (EFI) application
+    EfiBootServiceDriver    = 11,   // An EFI driver with boot services
+    EfiRuntimeDriver        = 12,   // An EFI driver with run-time services
+    EfiROM                  = 13,   // An EFI ROM image
+    XBox                    = 14,   // Xbox
+    WindowsBootApplication  = 16,   // Windows boot application
+    XBoxCodeCatalog         = 17    // Xbox code catalog
+};
+
+enum class PeDllCharacteristics : uint16_t
+{
+    HighEntropyVA       = 0x0020,   // Image can handle a high entropy 64-bit virtual address space
+    DynamicBase         = 0x0040,   // DLL can be relocated at load time
+    ForceIntegrity      = 0x0080,   // Code Integrity checks are enforced
+    NxCompatible        = 0x0100,   // Image is NX compatible
+    NoIsolation         = 0x0200,   // Isolation aware, but do not isolate the image
+    NoSEH               = 0x0400,   // Does not use structured exception handling
+    NoBind              = 0x0800,   // Do not bind the image
+    AppContainer        = 0x1000,   // Image must execute in an AppContainer
+    WmdDriver           = 0x2000,   // A WMD driver
+    ControlFlowGuard    = 0x4000,   // Image supports Control Flow Guard
+    TerminalServerAware = 0x8000    // Terminal server aware
 };
 
 /// \brief  Contains information about the new PE section of an executable file
@@ -119,8 +185,30 @@ public:
     PeExeInfo(std::istream &stream, size_t header_location)
       : _header_position{header_location}
     {
-        load_header(stream);
+        load_image_file_header(stream);
 
+        if (_pe_image_file_header.optional_header_size != 0)    // should be zero only for object files, never for image files.
+        {
+            uint16_t magic;
+            read(stream, &magic);
+            stream.seekg(-static_cast<int>(sizeof(magic)), std::ios::cur);
+
+            if (magic == 0x010B)        // 32-bit optional header
+            {
+                _pe_optional_32 = std::make_unique<PeOptionalHeader32>();
+                load_optional_header_32(stream);
+            }
+            else if (magic == 0x020B)   // 64-bit optional header
+            {
+                _pe_optional_64 = std::make_unique<PeOptionalHeader64>();
+                load_optional_header_64(stream);
+            }
+            else                        // unrecognized optional header type
+            {
+                //TODO: Indicate an error? Throw?
+            }
+
+        }
         //TODO: Load more here!!!
     }
 
@@ -131,17 +219,42 @@ public:
     }
 
     /// \brief  Return a reference to the PE header.
-    const PeExeHeader &header() const noexcept
+    ///
+    /// This header will be present in all PE executables.
+    const PeImageFileHeader &header() const noexcept
     {
-        return _pe_header;
+        return _pe_image_file_header;
+    }
+
+    /// \brief  Return a pointer to the 32-bit optional PE header, if it exists.
+    ///
+    /// The 32-bit optional header of an executable will only exist if the executable
+    /// is a 32-bit PE type, so the returned pointer may be null.
+    const PeOptionalHeader32 *optional_header_32() const noexcept
+    {
+        return _pe_optional_32.get();
+    }
+
+    /// \brief  Return a pointer to the 64-bit optional PE header, if it exists.
+    ///
+    /// The 64-bit optional header of an executable will only exist if the executable
+    /// is a 64-bit PE type, so the returned pointer may be null.
+    const PeOptionalHeader64 *optional_header_64() const noexcept
+    {
+        return _pe_optional_64.get();
     }
 
 private:
-    size_t          _header_position;   // absolute position in the file of the PE header. useful for offset calculations.
-    PeExeHeader		_pe_header;         // The PE header structure for this file.
+    size_t                              _header_position;       // absolute position in the file of the PE header. useful for offset calculations.
+    PeImageFileHeader                   _pe_image_file_header;  // The PE image file header structure for this file.
+    std::unique_ptr<PeOptionalHeader32> _pe_optional_32;        // Pointer to 32-bit Optional Header. Either this or the one below, never both.
+    std::unique_ptr<PeOptionalHeader64> _pe_optional_64;        // Pointer to 64-bit Optional Header. Either this or the one above, never both.
     // TBD!!!
 
-    void load_header(std::istream &stream);
+    void load_image_file_header(std::istream &stream);
+    void load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header);
+    void load_optional_header_32(std::istream &stream);
+    void load_optional_header_64(std::istream &stream);
 };
 
 #endif  //_EXELIB_PEEXE_H_

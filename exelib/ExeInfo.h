@@ -68,7 +68,7 @@ public:
                 // LE and LX are valid new-header types, but they are not currently supported.
                 _type = static_cast<ExeType>(two_byte_sig);
             }
-            else if (four_byte_sig == PeExeHeader::pe_signature)
+            else if (four_byte_sig == PeImageFileHeader::pe_signature)
             {
                _pe_info = std::make_unique<PeExeInfo>(stream, _mz_info.header().new_header_offset);
                _type = ExeType::PE;

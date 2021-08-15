@@ -4,47 +4,16 @@
 /// \author Jeff Bienstadt
 ///
 
-#include <version>
 #include <ctime>
-#include <iomanip>
 #include <ostream>
 #include <string>
 #include <type_traits>
 #include <utility>
 
 #include <PEExe.h>
+#include "HexVal.h"
 
 namespace {
-
-// Helper class to write a hex value to an output stream using io manipulators.
-template <typename T>
-class HexVal final
-{
-public:
-    T               value;
-    std::streamsize output_width;
-    char            fill_char;
-
-    HexVal(T value, std::streamsize width = sizeof(T) * 2, char fill_char = '0')
-        : value{value}
-        , output_width{width}
-        , fill_char{fill_char}
-    { }
-};
-
-template <typename T>
-std::ostream &operator<<(std::ostream &os, const HexVal<T> &value)
-{
-    auto current_fill = os.fill(value.fill_char);
-    auto current_flags = os.flags();
-
-    os << std::hex << std::uppercase << std::setw(value.output_width) << value.value;
-
-    os.fill(current_fill);
-    os.flags(current_flags);
-
-    return os;
-}
 
 // Helper to format a timestamp (from the PE header) into a string for output.
 std::string format_timestamp(uint32_t timestamp)
@@ -167,16 +136,16 @@ void dump_header(const PeImageFileHeader &header, std::ostream &outstream)
     outstream << '\n';
 }
 
-void dump_optional_header_base(const PeOptionalHeaderBase &header, std::ostream &stream)
+void dump_optional_header_base(const PeOptionalHeaderBase &header, std::ostream &outstream)
 {
-    stream << "Magic number:                     0x" << HexVal{header.magic} << '\n';
-    stream << "Linker version major:         " << std::setw(10) << static_cast<uint32_t>(header.linker_version_major) << '\n';
-    stream << "Linker version minor:         " << std::setw(10) << static_cast<uint32_t>(header.linker_version_minor) << '\n';
-    stream << "Code size:                    " << std::setw(10) << header.code_size << '\n';
-    stream << "Initialized Data size:        " << std::setw(10) << header.initialized_data_size << '\n';
-    stream << "Uninitialized Data size:      " << std::setw(10) << header.uninitialized_data_size << '\n';
-    stream << "Address of Entry Point:       0x" << HexVal{header.address_of_entry_point} << '\n';
-    stream << "Base of Code:                 0x" << HexVal{header.base_of_code} << '\n';
+    outstream << "Magic number:                     0x" << HexVal{header.magic} << '\n';
+    outstream << "Linker version major:         " << std::setw(10) << static_cast<uint32_t>(header.linker_version_major) << '\n';
+    outstream << "Linker version minor:         " << std::setw(10) << static_cast<uint32_t>(header.linker_version_minor) << '\n';
+    outstream << "Code size:                    " << std::setw(10) << header.code_size << '\n';
+    outstream << "Initialized Data size:        " << std::setw(10) << header.initialized_data_size << '\n';
+    outstream << "Uninitialized Data size:      " << std::setw(10) << header.uninitialized_data_size << '\n';
+    outstream << "Address of Entry Point:       0x" << HexVal{header.address_of_entry_point} << '\n';
+    outstream << "Base of Code:                 0x" << HexVal{header.base_of_code} << '\n';
 }
 
 // Helper to make the subsystem member of the PE optional header into a string for output.
@@ -255,49 +224,49 @@ std::string get_dll_characteristics_string(uint16_t characteristics)
 }
 
 template <typename T>
-void dump_optional_header_common(const T &header, std::ostream &stream)
+void dump_optional_header_common(const T &header, std::ostream &outstream)
 {
-    stream << "Image Base:           " << (sizeof(header.image_base) == 8 ? "" : "        ") << "0x" << HexVal{header.image_base} << '\n';
-    stream << "Section Alignment:            " << std::setw(10) << header.section_alignment << '\n';
-    stream << "File Alignment:               " << std::setw(10) << header.file_alignment << '\n';
-    stream << "OS Version Major:             " << std::setw(10) << header.os_version_major << '\n';
-    stream << "OS Version Minor:             " << std::setw(10) << header.os_version_minor << '\n';
-    stream << "Image Version Major:          " << std::setw(10) << header.image_version_major << '\n';
-    stream << "Image Version Minor:          " << std::setw(10) << header.image_version_minor << '\n';
-    stream << "Subsystem Version Major:      " << std::setw(10) << header.subsystem_version_major << '\n';
-    stream << "Subsystem Version Minor:      " << std::setw(10) << header.subsystem_version_minor << '\n';
-    stream << "Win32 Version Value:          " << std::setw(10) << header.win32_version_value << '\n';
-    stream << "Size of Image:                " << std::setw(10) << header.size_of_image << '\n';
-    stream << "Size of Headers:              " << std::setw(10) << header.size_of_headers << '\n';
-    stream << "Checksum:                     0x" << HexVal{header.checksum} << '\n';
-    stream << "Subsystem:                    " << std::setw(10) << header.subsystem << ' ' << get_subsystem_name(header.subsystem) << '\n';
-    stream << "DLL Characteristics:              0x" << HexVal{header.dll_characteristics};
+    outstream << "Image Base:           " << (sizeof(header.image_base) == 8 ? "" : "        ") << "0x" << HexVal{header.image_base} << '\n';
+    outstream << "Section Alignment:            " << std::setw(10) << header.section_alignment << '\n';
+    outstream << "File Alignment:               " << std::setw(10) << header.file_alignment << '\n';
+    outstream << "OS Version Major:             " << std::setw(10) << header.os_version_major << '\n';
+    outstream << "OS Version Minor:             " << std::setw(10) << header.os_version_minor << '\n';
+    outstream << "Image Version Major:          " << std::setw(10) << header.image_version_major << '\n';
+    outstream << "Image Version Minor:          " << std::setw(10) << header.image_version_minor << '\n';
+    outstream << "Subsystem Version Major:      " << std::setw(10) << header.subsystem_version_major << '\n';
+    outstream << "Subsystem Version Minor:      " << std::setw(10) << header.subsystem_version_minor << '\n';
+    outstream << "Win32 Version Value:          " << std::setw(10) << header.win32_version_value << '\n';
+    outstream << "Size of Image:                " << std::setw(10) << header.size_of_image << '\n';
+    outstream << "Size of Headers:              " << std::setw(10) << header.size_of_headers << '\n';
+    outstream << "Checksum:                     0x" << HexVal{header.checksum} << '\n';
+    outstream << "Subsystem:                    " << std::setw(10) << header.subsystem << ' ' << get_subsystem_name(header.subsystem) << '\n';
+    outstream << "DLL Characteristics:              0x" << HexVal{header.dll_characteristics};
     std::string characteristics = get_dll_characteristics_string(header.dll_characteristics);
     if (characteristics.size() > 65)
-        stream << '\n' << "   ";
-    stream << ' ' << characteristics << '\n';
-    stream << "Stack Reserve Size: " << std::setw(20) << header.size_of_stack_reserve << '\n';
-    stream << "Stack Commit Size:  " << std::setw(20) << header.size_of_stack_commit << '\n';
-    stream << "Heap Reserve Size:  " << std::setw(20) << header.size_of_heap_reserve << '\n';
-    stream << "Heap Commit Size:   " << std::setw(20) << header.size_of_heap_commit << '\n';
-    stream << "Loader Flags:                 0x" << HexVal{header.loader_flags} << '\n';
-    stream << "Number of RVA And Sizes:      " << std::setw(10) << header.num_rva_and_sizes << '\n';
+        outstream << '\n' << "   ";
+    outstream << ' ' << characteristics << '\n';
+    outstream << "Stack Reserve Size: " << std::setw(20) << header.size_of_stack_reserve << '\n';
+    outstream << "Stack Commit Size:  " << std::setw(20) << header.size_of_stack_commit << '\n';
+    outstream << "Heap Reserve Size:  " << std::setw(20) << header.size_of_heap_reserve << '\n';
+    outstream << "Heap Commit Size:   " << std::setw(20) << header.size_of_heap_commit << '\n';
+    outstream << "Loader Flags:                 0x" << HexVal{header.loader_flags} << '\n';
+    outstream << "Number of RVA And Sizes:      " << std::setw(10) << header.num_rva_and_sizes << '\n';
 }
 
-void dump_optional_header(const PeOptionalHeader32 &header, std::ostream &stream)
+void dump_optional_header(const PeOptionalHeader32 &header, std::ostream &outstream)
 {
-    stream << "New PE optional header 32-bit\n-------------------------------------------\n";
-    dump_optional_header_base(header, stream);
-    stream << "Base of Data:                 0x" << HexVal{header.base_of_data} << '\n';
-    dump_optional_header_common(header, stream);
+    outstream << "New PE optional header 32-bit\n-------------------------------------------\n";
+    dump_optional_header_base(header, outstream);
+    outstream << "Base of Data:                 0x" << HexVal{header.base_of_data} << '\n';
+    dump_optional_header_common(header, outstream);
 }
 
-void dump_optional_header(const PeOptionalHeader64 &header, std::ostream &stream)
+void dump_optional_header(const PeOptionalHeader64 &header, std::ostream &outstream)
 {
-    stream << "New PE optional header 64-bit\n-------------------------------------------\n";
-    dump_optional_header_base(header, stream);
-    stream << "**** No Base of Data field in 64-bit header ****\n";
-    dump_optional_header_common(header, stream);
+    outstream << "New PE optional header 64-bit\n-------------------------------------------\n";
+    dump_optional_header_base(header, outstream);
+    outstream << "**** No Base of Data field in 64-bit header ****\n";
+    dump_optional_header_common(header, outstream);
 }
 
 }   // anonymous namespace

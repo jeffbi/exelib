@@ -4,14 +4,9 @@
 /// \author Jeff Bienstadt
 ///
 
-#include <version>
 #include <exception>
 #include <fstream>
-#if defined(__cpp_lib_format)
-#include <format>
-#else
-#include <cstdio>
-#endif
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -22,6 +17,8 @@
 #include <NEExe.h>
 #include <PEExe.h>
 
+#include "HexVal.h"
+
 
 void dump_ne_info(const NeExeInfo &info, std::ostream &outstream);  // in nedump.cpp
 void dump_pe_info(const PeExeInfo &info, std::ostream &outstream);  // in pedump.cpp
@@ -29,83 +26,24 @@ void dump_pe_info(const PeExeInfo &info, std::ostream &outstream);  // in pedump
 
 void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
 {
-#if defined(__cpp_lib_format)
-    const char *format_string =
-        "Old MZ header\n-------------------------------------------\n"
-        "Signature:                          0x{:04X}\n"
-        "Bytes on last page:                  {:5}\n"
-        "Total pages:                         {:5}\n"
-        "Number of relocation items:          {:5}\n"
-        "Number of paragraphs in header:      {:5}\n"
-        "Extra paragraphs required:           {:5}\n"
-        "Extra paragraphs requested:          {:5}\n"
-        "Initial SS : SP:           0x{:04X} : 0x{:04X}\n"
-        "Checksum:                           0x{:04X}\n"
-        "Initial CS : IP:           0x{:04X} : 0x{:04X}\n"
-        "Relocation Table position:          0x{:04X}\n"
-        "Overlay:                             {:5}\n"
-        "OEM ID:                             0x{:04X}\n"
-        "OEM info:                           0x{:04X}\n"
-        "New header offset:              0x{:08X}\n";
-
-    outstream << std::format(format_string,
-                             header.signature,
-                             header.bytes_on_last_page,
-                             header.num_pages,
-                             header.num_relocation_items,
-                             header.header_size,
-                             header.min_allocation,
-                             header.requested_allocation,
-                             header.initial_SS, header.initial_SP,
-                             header.checksum,
-                             header.initial_CS, header.initial_IP,
-                             header.relocation_table_pos,
-                             header.overlay,
-                             header.oem_ID,
-                             header.oem_info,
-                             header.new_header_offset);
-#else
-    char buffer[1024];
-    const char *format_string =
-        "Old MZ header\n-------------------------------------------\n"
-        "Signature:                          0x%04X\n"
-        "Bytes on last page:                  %5hu\n"
-        "Total pages:                         %5hu\n"
-        "Number of relocation items:          %5hu\n"
-        "Number of paragraphs in header:      %5hu\n"
-        "Extra paragraphs required:           %5hu\n"
-        "Extra paragraphs requested:          %5hu\n"
-        "Initial SS : SP:           0x%04hX : 0x%04hX\n"
-        "Checksum:                           0x%04hX\n"
-        "Initial CS : IP:           0x%04hX : 0x%04hX\n"
-        "Relocation Table position:          0x%04hX\n"
-        "Overlay:                             %5hu\n"
-        "OEM ID:                             0x%04hX\n"
-        "OEM info:                           0x%04hX\n"
-        "New header offset:              0x%08X\n";
-
-#if defined(_MSC_VER)
-    int size = sprintf_s(buffer, sizeof(buffer), format_string,
-#else
-    int size = std::sprintf(buffer, format_string,
-#endif
-                                    header.signature,
-                                    header.bytes_on_last_page,
-                                    header.num_pages,
-                                    header.num_relocation_items,
-                                    header.header_size,
-                                    header.min_allocation,
-                                    header.requested_allocation,
-                                    header.initial_SS, header.initial_SP,
-                                    header.checksum,
-                                    header.initial_CS, header.initial_IP,
-                                    header.relocation_table_pos,
-                                    header.overlay,
-                                    header.oem_ID,
-                                    header.ome_info,
-                                    header.new_header_offset);
-    outstream << buffer;
-#endif
+    outstream << "Old MZ header\n-------------------------------------------\n";
+    outstream << "Signature:                          0x" << HexVal{header.signature} << '\n';
+    outstream << "Bytes on last page:                  " << std::setw(5) << header.bytes_on_last_page << '\n';
+    outstream << "Total pages:                         " << std::setw(5) << header.num_pages << '\n';
+    outstream << "Number of relocation items:          " << std::setw(5) << header.num_relocation_items << '\n';
+    outstream << "Number of paragraphs in header:      " << std::setw(5) << header.header_size << '\n';
+    outstream << "Extra paragraphs required:           " << std::setw(5) << header.min_allocation << '\n';
+    outstream << "Extra paragraphs requested:          " << std::setw(5) << header.requested_allocation << '\n';
+    outstream << "Initial SS:                         0x" << HexVal{header.initial_SS} << '\n';
+    outstream << "Initial SP:                         0x" << HexVal{header.initial_SP} << '\n';
+    outstream << "Checksum:                           0x" << HexVal{header.checksum} << '\n';
+    outstream << "Initial CS:                         0x" << HexVal{header.initial_CS} << '\n';
+    outstream << "Initial IP:                         0x" << HexVal{header.initial_IP} << '\n';
+    outstream << "Relocation Table position:          0x" << HexVal{header.relocation_table_pos} << '\n';
+    outstream << "Overlay:                             " << std::setw(5) << header.overlay << '\n';
+    outstream << "OEM ID:                             0x" << HexVal{header.oem_ID} << '\n';
+    outstream << "OEM info:                           0x" << HexVal{header.oem_info} << '\n';
+    outstream << "New header offset:              0x" << HexVal{header.new_header_offset} << '\n';
 }
 
 void dump_exe_info(const ExeInfo &exe_info, std::ostream &outstream = std::cout)

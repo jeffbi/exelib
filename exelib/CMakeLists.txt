@@ -6,13 +6,13 @@ target_sources(exelib
         MZExe.cpp
         NEExe.cpp
         PEExe.cpp
+        readstream.h
+        resource_type.h
     PUBLIC
         ExeInfo.h
         MZExe.h
         NEExe.h
         PEExe.h
-        readstream.h
-        resource_type.h
 )
 
 target_compile_features(exelib PUBLIC cxx_std_14)

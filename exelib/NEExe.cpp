@@ -265,17 +265,28 @@ void NeExeInfo::load_nonresident_name_table(std::istream &stream)
 
 void NeExeInfo::load_imported_name_table(std::istream &stream)
 {
+    auto    entry_table_location = header_position() + header().entry_table_offset;
     auto    table_location = header_position() + header().import_table_offset;
-    uint8_t string_size;
-    char    name_buffer[256];
+    auto    table_size = entry_table_location - table_location;
+    auto    pos = 0u;
+    char    name_buffer[256] {0};
 
     stream.seekg(table_location);
-    read(stream, &string_size);
-    while (string_size)
+    while (pos < table_size)
     {
-        stream.read(name_buffer, string_size);
-        _imported_names.push_back(std::string(name_buffer, string_size));
+        uint8_t string_size;
         read(stream, &string_size);
+        ++pos;
+        if (string_size)
+        {
+            stream.read(name_buffer, string_size);
+            pos += string_size;
+        }
+        else
+        {
+            name_buffer[0] = '\0';
+        }
+        _imported_names.emplace_back(std::string{name_buffer, string_size});
     }
 }
 

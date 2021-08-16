@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <iosfwd>
 #include <memory>
+#include <vector>
 
 /// \brief  Describes the PE-style header
 struct PeImageFileHeader
@@ -173,10 +174,81 @@ enum class PeDllCharacteristics : uint16_t
     TerminalServerAware = 0x8000    // Terminal server aware
 };
 
+struct PeDataDirectoryEntry
+{
+    uint32_t    virtual_address;
+    uint32_t    size;
+};
+
+struct PeSectionHeader
+{
+    uint8_t     name[8];                    // eight bytes of UTF-8 encoded name data
+    uint32_t    virtual_size;
+    uint32_t    virtual_address;
+    uint32_t    size_of_raw_data;
+    uint32_t    raw_data_position;
+    uint32_t    relocations_position;
+    uint32_t    line_numbers_position;
+    uint16_t    number_of_relocations;
+    uint16_t    number_of_line_numbers;
+    uint32_t    characteristics;
+};
+
+enum class PeSectionHeaderCharacteristics : uint32_t
+{
+    //                  = 0x00000000,   // reserved
+    //                  = 0x00000001,   // reserved
+    //                  = 0x00000002,   // reserved
+    //                  = 0x00000004,   // reserved
+    NoPadding           = 0x00000008,   // Section should not be padded to the next boundary. Obsolete
+    //                  = 0x00000010,   // reserved
+    ExecutableCode      = 0x00000020,   // Section contains executable code
+    InitializedData     = 0x00000040,   // Section contains initialized data
+    UninitializedData   = 0x00000080,   // Section contains unitialized data
+    LinkOther           = 0x00000100,   // reserved
+    LinkInfo            = 0x00000200,   // Section contains comments or other information. Object files only.
+    //                  = 0x00000400,   // reserved
+    LinkRemove          = 0x00000800,   // Section will not become part of the image. Object files only.
+    LinkCOMDAT          = 0x00001000,   // Section contains COMDAT data. Object files only.
+    GlobalPointerData   = 0x00008000,   // Section contains data referenced through the Global Pointer
+    MemPurgable         = 0x00020000,   // reserved
+    Mem16Bit            = 0x00020000,   // reserved
+    MemLocked           = 0x00040000,   // reserved
+    MemPreload          = 0x00080000,   // reserved
+    Align1Bytes         = 0x00100000,   // Align data on a 1-byte boundary. Object files only.
+    Align2Bytes         = 0x00200000,   // Align data on a 2-byte boundary. Object files only.
+    Align4Bytes         = 0x00300000,   // Align data on a 4-byte boundary. Object files only.
+    Align8Bytes         = 0x00400000,   // Align data on a 8-byte boundary. Object files only.
+    Align16Bytes        = 0x00500000,   // Align data on a 16-byte boundary. Object files only.
+    Align32Bytes        = 0x00600000,   // Align data on a 32-byte boundary. Object files only.
+    Align64Bytes        = 0x00700000,   // Align data on a 64-byte boundary. Object files only.
+    Align128Bytes       = 0x00800000,   // Align data on a 128-byte boundary. Object files only.
+    Align256Bytes       = 0x00900000,   // Align data on a 256-byte boundary. Object files only.
+    Align512Bytes       = 0x00A00000,   // Align data on a 512-byte boundary. Object files only.
+    Align1024Bytes      = 0x00B00000,   // Align data on a 1024-byte boundary. Object files only.
+    Align2048Bytes      = 0x00C00000,   // Align data on a 2048-byte boundary. Object files only.
+    Align4096Bytes      = 0x00D00000,   // Align data on a 4096-byte boundary. Object files only.
+    Align8192Bytes      = 0x00E00000,   // Align data on a 8192-byte boundary. Object files only.
+    AlignMask           = 0x00F00000,
+    LinkNRelocOverflow  = 0x01000000,   // Section contains extended relocations
+    MemDiscardable      = 0x02000000,   // Section can be discarded
+    MemNotCached        = 0x04000000,   // Section cannot be cached
+    MemNotPaged         = 0x08000000,   // Section is not pageable
+    MemShared           = 0x10000000,   // Section can be shared in memory
+    MemExecute          = 0x20000000,   // Section can be executed as code
+    MemRead             = 0x40000000,   // Section can be read
+    MemWrite            = 0x80000000    // Section can be written to
+};
+
 /// \brief  Contains information about the new PE section of an executable file
 class PeExeInfo
 {
 public:
+    // Types
+    using DataDirectory = std::vector<PeDataDirectoryEntry>;
+    using SectionHeaderContainer = std::vector<PeSectionHeader>;
+
+
     /// \brief  Construct a \c PeExeInfo object from a stream.
     /// \param stream           The input stream from which to read.
     /// \param header_location  Position in the file at which the PE portion begins.
@@ -214,12 +286,23 @@ public:
         return _pe_optional_64.get();
     }
 
+    const DataDirectory &data_directory() const noexcept
+    {
+        return _pe_data_directory;
+    }
+
+    const SectionHeaderContainer &section_headers() const noexcept
+    {
+        return _pe_section_headers;
+    }
+
 private:
     size_t                              _header_position;       // absolute position in the file of the PE header. useful for offset calculations.
     PeImageFileHeader                   _pe_image_file_header;  // The PE image file header structure for this file.
     std::unique_ptr<PeOptionalHeader32> _pe_optional_32;        // Pointer to 32-bit Optional Header. Either this or the one below, never both.
     std::unique_ptr<PeOptionalHeader64> _pe_optional_64;        // Pointer to 64-bit Optional Header. Either this or the one above, never both.
-    // TBD!!!
+    DataDirectory                       _pe_data_directory;     // The Data Directory
+    SectionHeaderContainer              _pe_section_headers;    // The Section headers
 
     void load_image_file_header(std::istream &stream);
     void load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header);

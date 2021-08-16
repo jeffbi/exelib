@@ -17,6 +17,8 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location)
 
     if (_pe_image_file_header.optional_header_size != 0)    // should be zero only for object files, never for image files.
     {
+        uint32_t nRVAs = 0;
+
         uint16_t magic;
         read(stream, &magic);
         stream.seekg(-static_cast<int>(sizeof(magic)), std::ios::cur);
@@ -25,19 +27,54 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location)
         {
             _pe_optional_32 = std::make_unique<PeOptionalHeader32>();
             load_optional_header_32(stream);
+            nRVAs = _pe_optional_32->num_rva_and_sizes;
         }
         else if (magic == 0x020B)   // 64-bit optional header
         {
             _pe_optional_64 = std::make_unique<PeOptionalHeader64>();
             load_optional_header_64(stream);
+            nRVAs = _pe_optional_64->num_rva_and_sizes;
         }
         else                        // unrecognized optional header type
         {
             //TODO: Indicate an error? Throw?
         }
 
+        // Load the Data Directory
+        _pe_data_directory.reserve(nRVAs);
+        for (uint32_t i = 0; i < nRVAs; ++i)
+        {
+            PeDataDirectoryEntry entry;
+            read(stream, &entry.virtual_address);
+            read(stream, &entry.size);
+
+            _pe_data_directory.emplace_back(entry);
+        }
+
+        // Load the section headers
+        _pe_section_headers.reserve(_pe_image_file_header.num_sections);
+        for (uint16_t i = 0; i < _pe_image_file_header.num_sections; ++i)
+        {
+            PeSectionHeader header;
+            stream.read(reinterpret_cast<char *>(&header.name), (sizeof(header.name) / sizeof(header.name[0])));
+            read(stream, &header.virtual_size);
+            read(stream, &header.virtual_address);
+            read(stream, &header.size_of_raw_data);
+            read(stream, &header.raw_data_position);
+            read(stream, &header.relocations_position);
+            read(stream, &header.line_numbers_position);
+            read(stream, &header.number_of_relocations);
+            read(stream, &header.number_of_line_numbers);
+            read(stream, &header.characteristics);
+
+            _pe_section_headers.emplace_back(header);
+        }
+        //TODO: Load more here!!!
     }
-    //TODO: Load more here!!!
+    else
+    {
+        throw std::runtime_error("Not a PE executable file. Perhaps a COFF object file?");
+    }
 }
 
 void PeExeInfo::load_image_file_header(std::istream &stream)

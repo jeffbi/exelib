@@ -250,7 +250,7 @@ void dump_optional_header_common(const T &header, std::ostream &outstream)
     outstream << "Heap Reserve Size:  " << std::setw(20) << header.size_of_heap_reserve << '\n';
     outstream << "Heap Commit Size:   " << std::setw(20) << header.size_of_heap_commit << '\n';
     outstream << "Loader Flags:                 0x" << HexVal{header.loader_flags} << '\n';
-    outstream << "Number of RVA And Sizes:      " << std::setw(10) << header.num_rva_and_sizes << '\n';
+    outstream << "Number of RVAs And Sizes:     " << std::setw(10) << header.num_rva_and_sizes << '\n';
 }
 
 void dump_optional_header(const PeOptionalHeader32 &header, std::ostream &outstream)
@@ -267,6 +267,74 @@ void dump_optional_header(const PeOptionalHeader64 &header, std::ostream &outstr
     dump_optional_header_base(header, outstream);
     outstream << "**** No Base of Data field in 64-bit header ****\n";
     dump_optional_header_common(header, outstream);
+}
+
+void dump_data_directory(const PeExeInfo::DataDirectory &data_dir, std::ostream &outstream)
+{
+    static constexpr const char *data_table_names[]
+        {
+            "Export Table",
+            "Import Table",
+            "Resource Table",
+            "Exception Table",
+            "Certificate Table",
+            "Base Relocation Table",
+            "Debug",
+            "Architecture",
+            "Global Pointer",
+            "Thread Local Storage Table",
+            "Load Configuration Table",
+            "Bound Import Table",
+            "Import Address Table",
+            "Delay Import Descriptor",
+            "CLR Runtime Header",
+            "Reserved"
+        };
+    for (size_t i = 0; i < data_dir.size(); ++i)
+    {
+        const PeDataDirectoryEntry &entry = data_dir[i];
+
+        outstream << "  0x" << HexVal{entry.virtual_address} << "  " << std::setw(10) << entry.size << "  ";
+        if (i < (sizeof(data_table_names) / sizeof(data_table_names[0])))
+            outstream << data_table_names[i] << '\n';
+        else
+            outstream << "???" << '\n';
+    }
+}
+
+void dump_section_headers(const PeExeInfo::SectionHeaderContainer &headers, std::ostream &outstream)
+{
+    outstream << "Section Headers\n-------------------------------------------\n";
+
+    char name_buffer[sizeof(PeSectionHeader::name) / sizeof(PeSectionHeader::name[0]) + 1] {0};
+
+    for (size_t i = 0; i < headers.size(); ++i)
+    {
+        outstream << "\nSection Header #" << i + 1 << '\n';
+
+        const PeSectionHeader &header = headers[i];
+
+        // !!! This is incomplete and a bit of a cheat.
+        // !!! The contents of the name array is a UTF-8 encoded name.
+        // !!! Because this sample does not have a UTF-8 decoder, we
+        // !!! assume that the content is ASCII. This could result in
+        // !!! odd characters being written to the stream.
+
+        // If the name occupies exactly eight bytes, it is not nul-terminated,
+        // so we copy the name into a nul-terminated temporary buffer.
+        std::memcpy(name_buffer, header.name, sizeof(header.name));
+        outstream << "    Name:                     " << std::setw(8) << name_buffer << '\n';
+
+        outstream << "    Virtual size:           " << std::setw(10) << header.virtual_size << '\n';
+        outstream << "    Virtual address:        0x" << HexVal{header.virtual_address} << '\n';
+        outstream << "    Raw data size:          " << std::setw(10) << header.size_of_raw_data << '\n';
+        outstream << "    Raw data offset:        0x" << HexVal{header.raw_data_position} << '\n';
+        outstream << "    Relocations offset:     0x" << HexVal{header.relocations_position} << '\n';
+        outstream << "    Line numbers offset:    0x" << HexVal{header.line_numbers_position} << '\n';
+        outstream << "    Number of relocations:       " << std::setw(5) << header.number_of_relocations << '\n';
+        outstream << "    Number of line numbers:      " << std::setw(5) << header.number_of_line_numbers << '\n';
+        outstream << "    Characteristics:        0x" << HexVal{header.characteristics} << '\n';   //TODO: dump characteristics!!!
+    }
 }
 
 }   // anonymous namespace
@@ -292,5 +360,11 @@ void dump_pe_info(const PeExeInfo &info, std::ostream &outstream)
     else
     {
         outstream << "No PE optional header found!\n";
+        return;
     }
+    // Data Directory is part of the header (32- and 64-bit)
+    dump_data_directory(info.data_directory(), outstream);
+    outstream << separator << std::endl;
+
+    dump_section_headers(info.section_headers(), outstream);
 }

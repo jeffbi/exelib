@@ -23,18 +23,33 @@ namespace {
 size_t dump_ne_names(const NeExeInfo::NameContainer &names, std::ostream &outstream)
 {
     if (names.size())
+    {
+        outstream << "Ordinal  Name\n"
+                  << "-------  ----\n";
+
         for (const auto &name : names)
-            outstream << "Ordinal: 0x" << HexVal{name.ordinal} << "  Name: " << name.name << '\n';
+            outstream << " 0x" << HexVal{name.ordinal} << "  " << name.name << '\n';
+    }
 
     return names.size();
 }
 
 // Helper for dumping a collection of strings
-size_t dump_strings(const NeExeInfo::StringContainer &strings, std::ostream &outstream)
+size_t dump_strings(const NeExeInfo::StringContainer &strings, std::ostream &outstream, bool show_length)
 {
     if (strings.size())
+    {
+        if (show_length)
+            outstream << "Length  Name\n"
+                      << "------  ----\n";
+
         for (const auto &str : strings)
+        {
+            if (show_length)
+                outstream << std::setw(6) << str.size() << "  ";
             outstream << str << '\n';
+        }
+    }
 
     return strings.size();
 }
@@ -198,45 +213,31 @@ void dump_segment_table(const NeExeInfo::SegmentContainer &table, uint16_t align
     outstream << "Segment Table\n-------------------------------------------\n";
     if (table.size())
     {
+        outstream << "Type  Sector offset  Length  Min. alloc  Flags\n"
+                  << "----  -------------  ------  ----------  ------\n";
+
         if (align == 0)
             align = 9;  // default shift-count value
 
         for (const auto &entry : table)
         {
-            //auto flags = entry.flags;
-
             auto sector_offset = static_cast<uint16_t>(entry.sector) << align;
 
             outstream << (entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE");
-            outstream << "  Sector offset: 0x" << HexVal{sector_offset};
-            outstream << "  Length: 0x" << HexVal{entry.length};
-            outstream << "  Min. alloc size: 0x" << HexVal{entry.min_alloc} << "  ";
+            outstream << "     0x" << HexVal{sector_offset};
+            outstream << "   " << std::setw(5) << entry.length;
+            outstream << "       " << std::setw(5) << entry.min_alloc;
 
-            std::stringstream ss;
-            ss << "Flags: 0x" << HexVal{entry.flags};
-            if (entry.flags & NeSegmentEntry::Preload)
-                ss << " PRELOAD";
-            std::string flags_string = ss.str();
+            outstream << "  0x" << HexVal{entry.flags};
+            outstream << ((entry.flags & NeSegmentEntry::Preload) ? " PRELOAD " : " ");
 
             if (entry.flags & NeSegmentEntry::RelocInfo)
-            {
-                if (flags_string.size())
-                    flags_string += ' ';
-                flags_string += "RELOCINFO";
-            }
+                outstream << "RELOCINFO ";
             if (entry.flags & NeSegmentEntry::Moveable)
-            {
-                if (flags_string.size())
-                    flags_string += ' ';
-                flags_string += "MOVEABLE";
-            }
+                outstream << "MOVEABLE ";
             if (entry.flags & NeSegmentEntry::Discard)
-            {
-                if (flags_string.size())
-                    flags_string += ' ';
-                flags_string += "DISCARDABLE";
-            }
-            outstream << flags_string << '\n';
+                outstream << "DISCARDABLE";
+            outstream << '\n';
         }
     }
     else
@@ -255,7 +256,7 @@ void dump_resource_table(const NeExeInfo::ResourceContainer &resources, uint16_t
 
         for (const auto &resource : resources)
         {
-            outstream << "    Resource Type: " << std::setw(15) << resource.type_name << '\n';  // Right-justify this!
+            outstream << "    Resource Type: " << std::setw(15) << resource.type_name << '\n';
             outstream << "    Count                    " << std::setw(5) << resource.count << '\n';
 
             for (const auto &info : resource.info)
@@ -263,7 +264,7 @@ void dump_resource_table(const NeExeInfo::ResourceContainer &resources, uint16_t
                 outstream << "      " << info.name << '\n';
                 outstream << "        Location:       0x" << HexVal{info.offset << shift_count} << '\n';
                 outstream << "        Size:                " << std::setw(5) << (info.length << shift_count) << '\n';
-                outstream << "        Flags:              0x" << HexVal{info.flags} << ' ';     //TODO: Expand flags!!!
+                outstream << "        Flags:              0x" << HexVal{info.flags} << ' ';
 
                 if (info.flags & 0x10)
                     outstream << "MOVEABLE ";
@@ -301,14 +302,14 @@ void dump_non_resident_name_table(const NeExeInfo::NameContainer &table, std::os
 void dump_imported_name_table(const NeExeInfo::StringContainer &table, std::ostream &outstream)
 {
     outstream << "Imported Names\n-------------------------------------------\n";
-    if (dump_strings(table, outstream) == 0)
+    if (dump_strings(table, outstream, true) == 0)
         outstream << "no imported names\n";
 }
 
 void dump_module_name_table(const NeExeInfo::StringContainer &table, std::ostream &outstream)
 {
     outstream << "Module Names\n-------------------------------------------\n";
-    if (dump_strings(table, outstream) == 0)
+    if (dump_strings(table, outstream, false) == 0)
         outstream << "no module names\n";
 }
 

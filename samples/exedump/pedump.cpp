@@ -302,6 +302,56 @@ void dump_data_directory(const PeExeInfo::DataDirectory &data_dir, std::ostream 
     }
 }
 
+std::vector<std::string> get_section_header_characteristic_strings(uint32_t characteristics)
+{
+    using ut = std::underlying_type<PeSectionHeaderCharacteristics>::type;
+
+    static constexpr std::pair<PeSectionHeaderCharacteristics, const char *> characteristic_pairs[] {
+        {PeSectionHeaderCharacteristics::NoPadding, "No Padding (obsolete)"},
+        {PeSectionHeaderCharacteristics::ExecutableCode, "Executable code"},
+        {PeSectionHeaderCharacteristics::InitializedData, "Initialized data"},
+        {PeSectionHeaderCharacteristics::UninitializedData, "Uninitialized data"},
+        {PeSectionHeaderCharacteristics::LinkOther, "(reserved)"},
+        {PeSectionHeaderCharacteristics::LinkInfo, "Comments"},
+        {PeSectionHeaderCharacteristics::LinkRemove, "To be removed"},
+        {PeSectionHeaderCharacteristics::LinkCOMDAT, "COMDAT"},
+        {PeSectionHeaderCharacteristics::GlobalPointerData, "Global Pointer data"},
+        {PeSectionHeaderCharacteristics::MemPurgable, "MEM_PURGABLE or MEM_16BIT (reserved)"},
+        {PeSectionHeaderCharacteristics::MemLocked, "(reserved)"},
+        {PeSectionHeaderCharacteristics::MemPreload, "(reserved)"},
+        {PeSectionHeaderCharacteristics::Align1Bytes, "Align data 1-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align2Bytes, "Align data 2-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align4Bytes, "Align data 4-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align8Bytes, "Align data 8-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align16Bytes, "Align data 16-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align32Bytes, "Align data 32-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align64Bytes, "Align data 64-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align128Bytes, "Align data 128-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align256Bytes, "Align data 256-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align512Bytes, "Align data 512-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align1024Bytes, "Align data 1024-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align2048Bytes, "Align data 2048-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align4096Bytes, "Align data 4096-byte boundary"},
+        {PeSectionHeaderCharacteristics::Align8192Bytes, "Align data 8192-byte boundary"},
+        {PeSectionHeaderCharacteristics::LinkNRelocOverflow, "Extended relocations"},
+        {PeSectionHeaderCharacteristics::MemDiscardable, "Discardable"},
+        {PeSectionHeaderCharacteristics::MemNotCached, "Not Cacheable"},
+        {PeSectionHeaderCharacteristics::MemNotPaged, "Not Pageable"},
+        {PeSectionHeaderCharacteristics::MemShared, "Shareable"},
+        {PeSectionHeaderCharacteristics::MemExecute, "Executable"},
+        {PeSectionHeaderCharacteristics::MemRead, "Readable"},
+        {PeSectionHeaderCharacteristics::MemWrite, "Writeable"}
+    };
+
+    std::vector<std::string>    rv;
+
+    for (const auto &pair : characteristic_pairs)
+        if (characteristics & static_cast<ut>(pair.first))
+            rv.emplace_back(pair.second);
+
+    return rv;
+}
+
 void dump_section_headers(const PeExeInfo::SectionHeaderContainer &headers, std::ostream &outstream)
 {
     outstream << "Section Headers\n-------------------------------------------\n";
@@ -333,7 +383,12 @@ void dump_section_headers(const PeExeInfo::SectionHeaderContainer &headers, std:
         outstream << "    Line numbers offset:    0x" << HexVal{header.line_numbers_position} << '\n';
         outstream << "    Number of relocations:       " << std::setw(5) << header.number_of_relocations << '\n';
         outstream << "    Number of line numbers:      " << std::setw(5) << header.number_of_line_numbers << '\n';
-        outstream << "    Characteristics:        0x" << HexVal{header.characteristics} << '\n';   //TODO: dump characteristics!!!
+        outstream << "    Characteristics:        0x" << HexVal{header.characteristics} << '\n';
+
+        auto characteristics = get_section_header_characteristic_strings(header.characteristics);
+
+        for (const auto &c : characteristics)
+            outstream << "        " << c << '\n';
     }
 }
 

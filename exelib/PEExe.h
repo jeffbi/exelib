@@ -200,7 +200,7 @@ enum class PeSectionHeaderCharacteristics : uint32_t
     //                  = 0x00000001,   // reserved
     //                  = 0x00000002,   // reserved
     //                  = 0x00000004,   // reserved
-    NoPadding           = 0x00000008,   // Section should not be padded to the next boundary. Obsolete
+    NoPadding           = 0x00000008,   // Section should not be padded to the next boundary. Object files only. Obsolete
     //                  = 0x00000010,   // reserved
     ExecutableCode      = 0x00000020,   // Section contains executable code
     InitializedData     = 0x00000040,   // Section contains initialized data

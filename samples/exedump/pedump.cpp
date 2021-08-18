@@ -122,8 +122,8 @@ void dump_header(const PeImageFileHeader &header, std::ostream &outstream)
     outstream << "Signature:             0x" << HexVal(header.signature) << '\n';
     outstream << "Target machine:            0x" << HexVal(header.target_machine) << ' ' << get_target_machine_string(header.target_machine) << '\n';
     outstream << "Number of sections:    " << std::setw(10) << header.num_sections << '\n';
-    outstream << "Timestamp              " << format_timestamp(header.timestamp) << '\n';
-    outstream << "Symbol Table offset:   0x" << HexVal(header.symbol_table_offset) << '\n';
+    outstream << "Timestamp              0x" << HexVal{header.timestamp} << ' ' << format_timestamp(header.timestamp) << '\n';
+    outstream << "Symbol Table offset:   0x" << HexVal{header.symbol_table_offset} << '\n';
     outstream << "Number of symbols:'    " << std::setw(10) << header.num_symbols << '\n';
     outstream << "Optional Header size:  " << std::setw(10) << header.optional_header_size << '\n';
     outstream << "Characteristics:           0x" << HexVal(header.characteristics) << ' ';
@@ -347,36 +347,44 @@ std::vector<std::string> get_section_header_characteristic_strings(uint32_t char
 
     for (const auto &pair : characteristic_pairs)
         if (characteristics & static_cast<ut>(pair.first))
-            rv.emplace_back(pair.second);
+            rv.push_back(pair.second);
 
     return rv;
 }
 
-void dump_section_headers(const PeExeInfo::SectionHeaderContainer &headers, std::ostream &outstream)
+template <typename T>
+void dump_sections(const PeExeInfo::SectionContainer &sections, T image_base, std::ostream &outstream)
 {
-    outstream << "Section Headers\n-------------------------------------------\n";
+    outstream << "Sections\n-------------------------------------------\n";
 
     char name_buffer[sizeof(PeSectionHeader::name) / sizeof(PeSectionHeader::name[0]) + 1] {0};
 
-    for (size_t i = 0; i < headers.size(); ++i)
+    size_t n = 1;
+    for (const auto &section : sections)
     {
-        outstream << "\nSection Header #" << i + 1 << '\n';
+        outstream << "\nSection Header #" << n << '\n';
 
-        const PeSectionHeader &header = headers[i];
+        const auto &header = section.header();
 
         // !!! This is incomplete and a bit of a cheat.
-        // !!! The contents of the name array is a UTF-8 encoded name.
-        // !!! Because this sample does not have a UTF-8 decoder, we
-        // !!! assume that the content is ASCII. This could result in
-        // !!! odd characters being written to the stream.
+        // !!! Microsoft's documetation says that the contents of the
+        // !!! name array is a UTF-8 encoded name. Because this sample
+        // !!! does not have a UTF-8 decoder, we assume that the content
+        // !!! is ANSI. This could result in odd characters being written
+        // !!! to the stream.
 
         // If the name occupies exactly eight bytes, it is not nul-terminated,
         // so we copy the name into a nul-terminated temporary buffer.
         std::memcpy(name_buffer, header.name, sizeof(header.name));
         outstream << "    Name:                     " << std::setw(8) << name_buffer << '\n';
 
+        auto va = header.virtual_address + image_base;
+
         outstream << "    Virtual size:           " << std::setw(10) << header.virtual_size << '\n';
-        outstream << "    Virtual address:        0x" << HexVal{header.virtual_address} << '\n';
+        outstream << "    Virtual address:        0x" << HexVal{header.virtual_address} << " (0x" << HexVal{va};
+        if (header.virtual_size)
+            outstream << " -- 0x" << HexVal{va + header.virtual_size - 1};
+        outstream << ")\n";
         outstream << "    Raw data size:          " << std::setw(10) << header.size_of_raw_data << '\n';
         outstream << "    Raw data offset:        0x" << HexVal{header.raw_data_position} << '\n';
         outstream << "    Relocations offset:     0x" << HexVal{header.relocations_position} << '\n';
@@ -389,6 +397,14 @@ void dump_section_headers(const PeExeInfo::SectionHeaderContainer &headers, std:
 
         for (const auto &c : characteristics)
             outstream << "        " << c << '\n';
+
+        if (section.has_data())
+        {
+            outstream << "\nSection Data #" << n << '\n';
+            outstream << BasicHexDump(section.data().data(), section.data().size(), va);
+        }
+
+        ++n;
     }
 }
 
@@ -421,5 +437,9 @@ void dump_pe_info(const PeExeInfo &info, std::ostream &outstream)
     dump_data_directory(info.data_directory(), outstream);
     outstream << separator << std::endl;
 
-    dump_section_headers(info.section_headers(), outstream);
+    //dump_section_headers(info.section_headers(), outstream);
+    if (info.optional_header_32())
+        dump_sections(info.sections(), info.optional_header_32()->image_base, outstream);
+    else
+        dump_sections(info.sections(), info.optional_header_64()->image_base, outstream);
 }

@@ -93,7 +93,7 @@ void dump_exe(const char *path)
     {
         try
         {
-            dump_exe_info(ExeInfo(fs));
+            dump_exe_info(ExeInfo(fs, true));   // Here we're loading all the section raw data so we can output it in hexdumps
         }
         catch (const std::exception &ex)
         {

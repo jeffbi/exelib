@@ -1,5 +1,5 @@
 /// \file   ExeInfo.h
-/// Class and insertion function for formatting hex values inserted into an ostreams.
+/// Classses for writing hex data to a stream.
 ///
 /// \author Jeff Bienstadt
 ///
@@ -7,11 +7,12 @@
 #ifndef _EXELIB_HEXVAL_H_
 #define _EXELIB_HEXVAL_H_
 
+#include <cstdint>
+#include <cctype>
 #include <iomanip>
 #include <iosfwd>
 
-namespace {
-// Helper class to write a hex value to an output stream using io manipulators.
+// Helper class to write a hex value to an output stream using stream manipulators.
 template <typename T>
 class HexVal final
 {
@@ -41,7 +42,62 @@ inline std::ostream &operator<<(std::ostream &os, const HexVal<T> &value)
     return os;
 }
 
-}   // anonymous namespace
+template <typename T>
+struct BasicHexDump
+{
+    BasicHexDump(const uint8_t *data, size_t length, T start=static_cast<T>(0))
+        : data{data}
+        , length{length}
+        , start_address{start}
+    {};
 
+    const uint8_t  *data;
+    const size_t    length;
+    const T         start_address;
+};
+
+template<typename T>
+std::ostream &operator<<(std::ostream &outstream, BasicHexDump<T> &dump)
+{
+    constexpr auto addr_width{sizeof(T) * 2};
+    constexpr auto row_length{16u};
+
+    T addr = dump.start_address;
+
+    auto old_fill = outstream.fill('0');
+    auto old_flags = outstream.flags(std::ios::uppercase | std::ios::hex);
+
+    for (size_t r = 0; r < dump.length; r += row_length, addr += row_length)
+    {
+        outstream << std::setw(addr_width) << addr << ": ";
+
+        for (unsigned c = 0; c < row_length; ++c)
+        {
+            if (r + c < dump.length)
+                outstream << std::setw(2) << static_cast<unsigned>(dump.data[r + c]) << ' ';
+            else
+                outstream << "   ";
+        }
+
+        for (size_t c = 0; c < row_length; ++c)
+        {
+            if (r + c < dump.length)
+            {
+                if (std::isprint(dump.data[r + c]))
+                    outstream << static_cast<char>(dump.data[r + c]);
+                else
+                    outstream << '.';
+            }
+        }
+        outstream << '\n';
+    }
+
+    outstream.setf(old_flags);
+    outstream.fill(old_fill);
+
+    return outstream;
+}
+using HexDump = BasicHexDump<uint32_t>;
+using VaHexDump = BasicHexDump<uint64_t>;
 
 #endif  // _EXELIB_HEXVAL_H_

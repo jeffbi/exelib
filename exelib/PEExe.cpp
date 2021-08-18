@@ -10,7 +10,7 @@
 #include "PEExe.h"
 #include "readstream.h"
 
-PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location)
+PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, bool include_raw_data)
     : _header_position{header_location}
 {
     load_image_file_header(stream);
@@ -48,14 +48,16 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location)
             read(stream, &entry.virtual_address);
             read(stream, &entry.size);
 
-            _pe_data_directory.emplace_back(entry);
+            _pe_data_directory.push_back(entry);
         }
 
-        // Load the section headers
-        _pe_section_headers.reserve(_pe_image_file_header.num_sections);
+        // Load the sections; headers and optionally raw data
+        _pe_sections.reserve(_pe_image_file_header.num_sections);
         for (uint16_t i = 0; i < _pe_image_file_header.num_sections; ++i)
         {
+            // load the section header
             PeSectionHeader header;
+
             stream.read(reinterpret_cast<char *>(&header.name), (sizeof(header.name) / sizeof(header.name[0])));
             read(stream, &header.virtual_size);
             read(stream, &header.virtual_address);
@@ -67,7 +69,24 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location)
             read(stream, &header.number_of_line_numbers);
             read(stream, &header.characteristics);
 
-            _pe_section_headers.emplace_back(header);
+            if (include_raw_data)
+            {
+                std::vector<uint8_t>    data;
+                if (header.virtual_size)
+                {
+                    data.resize(header.virtual_size);
+                    auto here = stream.tellg();
+                    stream.seekg(header.raw_data_position);
+                    stream.read(reinterpret_cast<char *>(&data[0]), header.virtual_size);
+                    stream.seekg(here);
+                }
+
+                _pe_sections.emplace_back(header, std::move(data));
+            }
+            else
+            {
+                _pe_sections.emplace_back(header);
+            }
         }
         //TODO: Load more here!!!
     }

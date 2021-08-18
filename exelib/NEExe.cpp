@@ -286,7 +286,7 @@ void NeExeInfo::load_imported_name_table(std::istream &stream)
         {
             name_buffer[0] = '\0';
         }
-        _imported_names.emplace_back(std::string{name_buffer, string_size});
+        _imported_names.emplace_back(name_buffer, string_size);
     }
 }
 

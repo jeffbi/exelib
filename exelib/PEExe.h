@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <iosfwd>
 #include <memory>
+#include <utility>
 #include <vector>
 
 /// \brief  Describes the PE-style header
@@ -240,19 +241,91 @@ enum class PeSectionHeaderCharacteristics : uint32_t
     MemWrite            = 0x80000000    // Section can be written to
 };
 
+class PeSection
+{
+public:
+    PeSection(const PeSectionHeader &header, std::vector<uint8_t> &&data)
+        : _header{header}
+        , _data{data}
+        , _has_data{true}
+    {}
+
+    PeSection(const PeSectionHeader &header, const std::vector<uint8_t> &data)
+        : _header{header}
+        , _data{data}
+        , _has_data{true}
+    {}
+
+    PeSection(const PeSectionHeader &header)
+        :_header{header}
+        , _has_data{false}
+    {}
+
+    PeSection() = delete;
+    PeSection(const PeSection &other) = default;
+    PeSection(PeSection &&other) = default;
+    PeSection &operator=(const PeSection &other) = default;
+    PeSection &operator=(PeSection &&other) = default;
+
+    /// \brief  Return a value indicating whether the section's raw data was loaded.
+    ///
+    /// It is conceiveably possible that a section may have zero-length data,
+    /// in which case the object's data container will be emptyer, just as if
+    /// no data had been loaded. This function can be used to get a more
+    /// definitive answer to whether data was loaed.
+    bool has_data() const noexcept
+    {
+        return _has_data;
+    }
+
+    /// \brief  Return a reference to the raw data container.
+    const std::vector<uint8_t> &data() const noexcept
+    {
+        return _data;
+    }
+
+    /// \brief  Return a reference to the section header.
+    const PeSectionHeader &header() const noexcept
+    {
+        return _header;
+    }
+
+    /// \brief  Convenience function to return the section's virtual address.
+    ///
+    /// This address is relative to the executable's base address. Add this
+    /// value to the executable's base address, which can be accessed through
+    /// the PE Optional Header, to get the complete virtual address.
+    uint32_t virtual_address() const noexcept
+    {
+        return _header.virtual_address;
+    }
+
+
+private:
+    PeSectionHeader         _header;
+    std::vector<uint8_t>    _data;
+    bool                    _has_data;
+};
+
 /// \brief  Contains information about the new PE section of an executable file
 class PeExeInfo
 {
 public:
     // Types
     using DataDirectory = std::vector<PeDataDirectoryEntry>;
-    using SectionHeaderContainer = std::vector<PeSectionHeader>;
+    using SectionContainer = std::vector<PeSection>;
 
 
     /// \brief  Construct a \c PeExeInfo object from a stream.
     /// \param stream           The input stream from which to read.
     /// \param header_location  Position in the file at which the PE portion begins.
-    PeExeInfo(std::istream &stream, size_t header_location);
+    /// \param load_raw_data    Whether to load raw data from sections.
+    ///                         Default is \c false.
+    ///
+    /// Loading the raw section data can be expensive in terms of time and memory.
+    /// If your program requires the raw section data then pass \c true in the
+    /// \p load_raw_data parameter.
+    PeExeInfo(std::istream &stream, size_t header_location, bool load_raw_data = false);
 
     /// \brief  Return the file position of the PE header.
     size_t header_position() const noexcept
@@ -291,9 +364,9 @@ public:
         return _pe_data_directory;
     }
 
-    const SectionHeaderContainer &section_headers() const noexcept
+    const SectionContainer &sections() const noexcept
     {
-        return _pe_section_headers;
+        return _pe_sections;
     }
 
 private:
@@ -302,7 +375,7 @@ private:
     std::unique_ptr<PeOptionalHeader32> _pe_optional_32;        // Pointer to 32-bit Optional Header. Either this or the one below, never both.
     std::unique_ptr<PeOptionalHeader64> _pe_optional_64;        // Pointer to 64-bit Optional Header. Either this or the one above, never both.
     DataDirectory                       _pe_data_directory;     // The Data Directory
-    SectionHeaderContainer              _pe_section_headers;    // The Section headers
+    SectionContainer                    _pe_sections;           // The Sections info, headers and optionally raw data
 
     void load_image_file_header(std::istream &stream);
     void load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header);

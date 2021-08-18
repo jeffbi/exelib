@@ -40,7 +40,7 @@ public:
     /// \brief Construct an \c ExeInfo object from a stream.
     /// \param stream   An \c std::istream instance from which to read.
     ///                 The stream must have been opened using binary mode.
-    ExeInfo(std::istream &stream)
+    ExeInfo(std::istream &stream, bool load_raw_data = false)
       : _mz_info{stream}
     {
         // if _mz_info's constructor succeeded, we know we at least have a MZ-type executable
@@ -70,7 +70,7 @@ public:
             }
             else if (four_byte_sig == PeImageFileHeader::pe_signature)
             {
-               _pe_info = std::make_unique<PeExeInfo>(stream, _mz_info.header().new_header_offset);
+               _pe_info = std::make_unique<PeExeInfo>(stream, _mz_info.header().new_header_offset, load_raw_data);
                _type = ExeType::PE;
             }
             else

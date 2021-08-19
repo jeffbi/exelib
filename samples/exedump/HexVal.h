@@ -57,7 +57,7 @@ struct BasicHexDump
 };
 
 template<typename T>
-std::ostream &operator<<(std::ostream &outstream, BasicHexDump<T> &dump)
+std::ostream &operator<<(std::ostream &outstream, const BasicHexDump<T> &dump)
 {
     constexpr auto addr_width{sizeof(T) * 2};
     constexpr auto row_length{16u};

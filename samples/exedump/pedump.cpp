@@ -4,6 +4,7 @@
 /// \author Jeff Bienstadt
 ///
 
+#include <cstring>
 #include <ctime>
 #include <iomanip>
 #include <ostream>

@@ -18,6 +18,7 @@
 #include <PEExe.h>
 
 #include "HexVal.h"
+#include "LoadOptions.h"
 
 
 void dump_ne_info(const NeExeInfo &info, std::ostream &outstream);  // in nedump.cpp
@@ -91,14 +92,12 @@ void dump_exe(const char *path)
 
     if (fs.is_open())
     {
-        try
-        {
-            dump_exe_info(ExeInfo(fs, true));   // Here we're loading all the section raw data so we can output it in hexdumps
-        }
-        catch (const std::exception &ex)
-        {
-            std::cerr << ex.what() << std::endl;
-        }
+        std::cout << "Dump of " << path << '\n';
+        dump_exe_info(ExeInfo(fs, LoadOptions::LoadAllData));   // Here we're loading all the section raw data so we can output it in hexdumps
+    }
+    else
+    {
+        throw std::runtime_error(std::string("Could not open file ") + path);
     }
 }
 
@@ -113,10 +112,16 @@ int main(int argc, char **argv)
     {
         for (int i = 1; i < argc; ++i)
         {
-            std::cout << "Dump of " << argv[i] << '\n';
-            dump_exe(argv[i]);
-            if (i < argc - 1)
-                std::cout << "\n\n";
+            try
+            {
+                dump_exe(argv[i]);
+                if (i < argc - 1)
+                    std::cout << "\n\n";
+            }
+            catch (const std::exception &ex)
+            {
+                std::cerr << ex.what() << std::endl;
+            }
         }
     }
     else

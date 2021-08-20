@@ -9,6 +9,7 @@ target_sources(exelib
         readstream.h
         resource_type.h
     PUBLIC
+        LoadOptions.h
         ExeInfo.h
         MZExe.h
         NEExe.h

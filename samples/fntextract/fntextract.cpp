@@ -28,22 +28,22 @@ void save_resource(const std::string &name, const NeExeInfo::ByteContainer &cont
     }
 }
 
-size_t process_resources(const NeExeInfo::ResourceContainer &resources)
+size_t process_resources(const NeExeInfo::ResourceTable &resource_table)
 {
     size_t  font_count = 0;
 
-    for (const auto &resource : resources)
+    for (const auto &entry : resource_table)
     {
-        if (resource.type & 0x8000) // if the high bit of the type is set, type is an integer
+        if (entry.type & 0x8000)    // if the high bit of the type is set, type is an integer
         {
-            if ((resource.type & ~0x8000) == static_cast<uint16_t>(ResourceType::Font))
+            if ((entry.type & ~0x8000) == static_cast<uint16_t>(ResourceType::Font))
             {
-                for (const auto &info : resource.info)
+                for (const auto &resource : entry.resources)
                 {
-                    if (info.id & 0x8000)   // if the high bit of the id is set, construct a name from the integer
-                        save_resource('#' + std::to_string(info.id & ~0x8000), info.bits);
+                    if (resource.id & 0x8000)   // if the high bit of the id is set, construct a name from the integer
+                        save_resource('#' + std::to_string(resource.id & ~0x8000), resource.bits);
                     else
-                        save_resource(info.name, info.bits);
+                        save_resource(resource.name, resource.bits);
                     ++font_count;
                 }
             }
@@ -59,7 +59,7 @@ void process_file(const char *path)
 
     if (fs.is_open())
     {
-        ExeInfo exeInfo(fs);    // Open and load the executable file. ExeInfo is the core object of the library.
+        ExeInfo exeInfo(fs, LoadOptions::LoadResourceData); // Open and load the executable file. ExeInfo is the core object of the library.
         auto    ne = exeInfo.ne_part();
         if (ne == nullptr)
             throw std::runtime_error("This doesn't look like a .fon file! It's ot an NE executable file");

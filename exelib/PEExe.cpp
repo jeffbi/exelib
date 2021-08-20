@@ -4,13 +4,15 @@
 /// \author Jeff Bienstadt
 ///
 
+#include <algorithm>
 #include <exception>
 #include <istream>
 
+#include "LoadOptions.h"
 #include "PEExe.h"
 #include "readstream.h"
 
-PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, bool include_raw_data)
+PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::Options options)
     : _header_position{header_location}
 {
     load_image_file_header(stream);
@@ -69,15 +71,16 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, bool include_
             read(stream, &header.number_of_line_numbers);
             read(stream, &header.characteristics);
 
-            if (include_raw_data)
+            if (options & LoadOptions::LoadSectionData)
             {
                 std::vector<uint8_t>    data;
-                if (header.virtual_size)
+                auto data_size = std::min(header.virtual_size, header.size_of_raw_data);
+                if (data_size)
                 {
-                    data.resize(header.virtual_size);
+                    data.resize(data_size);
                     auto here = stream.tellg();
                     stream.seekg(header.raw_data_position);
-                    stream.read(reinterpret_cast<char *>(&data[0]), header.virtual_size);
+                    stream.read(reinterpret_cast<char *>(&data[0]), data_size);
                     stream.seekg(here);
                 }
 

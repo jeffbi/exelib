@@ -1,7 +1,7 @@
 /// \file   PEExe.h
 /// Classes and structures describing the PE section of a Portable Executable
 /// format executable.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
@@ -13,6 +13,8 @@
 #include <memory>
 #include <utility>
 #include <vector>
+
+#include "LoadOptions.h"
 
 /// \brief  Describes the PE-style header
 struct PeImageFileHeader
@@ -317,15 +319,15 @@ public:
 
 
     /// \brief  Construct a \c PeExeInfo object from a stream.
-    /// \param stream           The input stream from which to read.
+    /// \param stream           An \c std::istream instance from which to read.
     /// \param header_location  Position in the file at which the PE portion begins.
-    /// \param load_raw_data    Whether to load raw data from sections.
-    ///                         Default is \c false.
+    /// \param options          Flags indicating what parts of an executable file
+    ///                         are to be loaded.
     ///
     /// Loading the raw section data can be expensive in terms of time and memory.
     /// If your program requires the raw section data then pass \c true in the
     /// \p load_raw_data parameter.
-    PeExeInfo(std::istream &stream, size_t header_location, bool load_raw_data = false);
+    PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::Options options);
 
     /// \brief  Return the file position of the PE header.
     size_t header_position() const noexcept

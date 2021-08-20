@@ -1,6 +1,6 @@
 /// \file   MZExe.h
 /// Classes and structures describing the MZ section of an executable.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <iosfwd>
 #include <vector>
+
+#include "LoadOptions.h"
 
 
 /// \brief  Describes the MZ header. These are the first bytes in an EXE executable.
@@ -52,7 +54,10 @@ class MzExeInfo
 {
 public:
     /// \brief  Construct an \c MzExeInfo object from a stream.
-    MzExeInfo(std::istream &stream)
+    ///
+    /// \param stream   An \c std::istream instance from which to read
+    /// \param options  Flags indicating what portions of the file to load.
+    MzExeInfo(std::istream &stream, LoadOptions::Options options)
     {
         load_header(stream);
         load_relocation_table(stream, _header.relocation_table_pos, _header.num_relocation_items);
@@ -76,7 +81,6 @@ private:
 
     void load_header(std::istream &stream);
     void load_relocation_table(std::istream &stream, uint16_t location, uint16_t count);
-
 };
 
 #endif  //_EXELIB_MZEXE_H_

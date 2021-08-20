@@ -11,6 +11,7 @@
 #include <memory>
 #include <vector>
 
+#include "LoadOptions.h"
 #include "MZExe.h"
 #include "NEExe.h"
 #include "PEExe.h"
@@ -40,8 +41,9 @@ public:
     /// \brief Construct an \c ExeInfo object from a stream.
     /// \param stream   An \c std::istream instance from which to read.
     ///                 The stream must have been opened using binary mode.
-    ExeInfo(std::istream &stream, bool load_raw_data = false)
-      : _mz_info{stream}
+    /// \param options  Flags indicating what portions of the file to load.
+    ExeInfo(std::istream &stream, LoadOptions::Options options)
+      : _mz_info{stream, options}
     {
         // if _mz_info's constructor succeeded, we know we at least have a MZ-type executable
         _type = ExeType::MZ;
@@ -60,7 +62,7 @@ public:
 
             if (two_byte_sig == NeExeHeader::ne_signature)
             {
-                _ne_info = std::make_unique<NeExeInfo>(stream, _mz_info.header().new_header_offset);
+                _ne_info = std::make_unique<NeExeInfo>(stream, _mz_info.header().new_header_offset, options);
                 _type = ExeType::NE;
             }
             else if (two_byte_sig == static_cast<uint16_t>(ExeType::LE) || two_byte_sig == static_cast<uint16_t>(ExeType::LX))
@@ -70,7 +72,7 @@ public:
             }
             else if (four_byte_sig == PeImageFileHeader::pe_signature)
             {
-               _pe_info = std::make_unique<PeExeInfo>(stream, _mz_info.header().new_header_offset, load_raw_data);
+               _pe_info = std::make_unique<PeExeInfo>(stream, _mz_info.header().new_header_offset, options);
                _type = ExeType::PE;
             }
             else

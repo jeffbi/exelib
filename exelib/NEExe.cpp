@@ -134,7 +134,7 @@ void NeExeInfo::load_segment_table(std::istream &stream)
     }
 }
 
-void NeExeInfo::load_resource_table(std::istream &stream)
+void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
 {
     // The resources count in the NE header often contains zero even when resources exist,
     // so we do the check this way. The table has an indicator for the final resource entry.
@@ -150,71 +150,79 @@ void NeExeInfo::load_resource_table(std::istream &stream)
         while (true)
         {
             // read the resource type
-            NeResource  resource;
-            read(stream, &resource.type);
-            if (resource.type == 0) // marks last resource entry
+            NeResourceEntry  entry;
+            read(stream, &entry.type);
+            if (entry.type == 0) // marks last resource entry
                 break;
-            read(stream, &resource.count);
-            read(stream, &resource.reserved);
+            read(stream, &entry.count);
+            read(stream, &entry.reserved);
 
             // read the information for each resource of this type
-            for (uint8_t i=0; i < resource.count; ++i)
+            for (uint8_t i=0; i < entry.count; ++i)
             {
-                NeResourceInfo  info;
-                read(stream, &info.offset);
-                read(stream, &info.length);
-                read(stream, &info.flags);
-                read(stream, &info.id);
-                read(stream, &info.reserved);
-                resource.info.push_back(info);
+                NeResource  resource;
+                read(stream, &resource.offset);
+                read(stream, &resource.length);
+                read(stream, &resource.flags);
+                read(stream, &resource.id);
+                read(stream, &resource.reserved);
+                entry.resources.push_back(resource);
             }
 
-            _resource_table.push_back(resource);
+            _resource_table.push_back(entry);
         }
 
         // now read the resource names
         char name_buffer[256];
         uint8_t string_size;
-        for (auto &&resource : _resource_table)
+        for (auto &&entry : _resource_table)
         {
             // for each resource type there is either a name or it is a pre-defined, integer type
-            if (resource.type & 0x8000) // high bit set indicates integer type
+            if (entry.type & 0x8000)    // high bit set indicates integer type
             {
-                resource.type_name = make_resource_type_name(resource.type);
+                entry.type_name = make_resource_type_name(entry.type);
             }
             else    // This is a named resource type
             {
                 // here, the type is an offset to the resource name, relative to the start of resource table.
-                stream.seekg(table_location + resource.type);
+                stream.seekg(table_location + entry.type);
                 read(stream, &string_size);
                 stream.read(name_buffer, string_size);
-                resource.type_name.append(name_buffer, string_size);
+                entry.type_name.append(name_buffer, string_size);
             }
 
             // read the resource name and the content for each resource of this type
-            for (auto &&info : resource.info)
+            for (auto &&resource : entry.resources)
             {
-                if (info.id & 0x8000)   // here also, high bit indicates an integer resource.
+                if (resource.id & 0x8000)   // here also, high bit indicates an integer resource.
                 {
-                    info.name = '#' + std::to_string(info.id & ~0x8000);
+                    resource.name = '#' + std::to_string(resource.id & ~0x8000);
                 }
                 else    // This is a named resource
                 {
-                    stream.seekg(table_location + info.id);
+                    stream.seekg(table_location + resource.id);
                     read(stream, &string_size);
                     stream.read(name_buffer, string_size);
-                    info.name.append(name_buffer, string_size);
+                    resource.name.append(name_buffer, string_size);
                 }
 
-                // read the raw content of the resource
-                auto offset = info.offset << _res_shift_count;
-                auto length = info.length << _res_shift_count;
-
-                if (length)
+                if (include_raw_data)
                 {
-                    info.bits.resize(length);
-                    stream.seekg(offset);
-                    stream.read(reinterpret_cast<char *>(&info.bits[0]), info.bits.size());
+                    // read the raw content of the resource
+                    auto offset = resource.offset << _res_shift_count;
+                    auto length = resource.length << _res_shift_count;
+
+                    if (length)
+                    {
+                        resource.bits.resize(length);
+                        stream.seekg(offset);
+                        stream.read(reinterpret_cast<char *>(&resource.bits[0]), resource.bits.size());
+                    }
+                    resource.has_data = true;
+                }
+                else
+                {
+                    resource.has_data = false;
                 }
             }
         }

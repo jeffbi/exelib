@@ -208,7 +208,7 @@ void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outst
         outstream << "no entries\n";
 }
 
-void dump_segment_table(const NeExeInfo::SegmentContainer &table, uint16_t align, std::ostream &outstream)
+void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, std::ostream &outstream)
 {
     outstream << "Segment Table\n-------------------------------------------\n";
     if (table.size())
@@ -246,35 +246,36 @@ void dump_segment_table(const NeExeInfo::SegmentContainer &table, uint16_t align
     }
 }
 
-//void dump_resource_table(const std::vector<NeResource> &resources, uint16_t shift_count, std::ostream &outstream)
-void dump_resource_table(const NeExeInfo::ResourceContainer &resources, uint16_t shift_count, std::ostream &outstream)
+void dump_resource_table(const NeExeInfo::ResourceTable &table, uint16_t shift_count, std::ostream &outstream)
 {
     outstream << "Resources\n-------------------------------------------\n";
-    if (resources.size())
+    if (table.size())
     {
-        outstream << resources.size() << " resource types:\n";
+        outstream << table.size() << " resource types:\n";
 
-        for (const auto &resource : resources)
+        for (const auto &entry : table)
         {
-            outstream << "    Resource Type: " << std::setw(15) << resource.type_name << '\n';
-            outstream << "    Count                    " << std::setw(5) << resource.count << '\n';
+            outstream << "    Resource Type: " << std::setw(15) << entry.type_name << '\n';
+            outstream << "    Count                    " << std::setw(5) << entry.count << '\n';
 
-            for (const auto &info : resource.info)
+            for (const auto &resource : entry.resources)
             {
-                outstream << "      " << info.name << '\n';
-                outstream << "        Location:       0x" << HexVal{info.offset << shift_count} << '\n';
-                outstream << "        Size:                " << std::setw(5) << (info.length << shift_count) << '\n';
-                outstream << "        Flags:              0x" << HexVal{info.flags} << ' ';
+                outstream << "      " << resource.name << '\n';
+                outstream << "        Location:       0x" << HexVal{resource.offset << shift_count} << '\n';
+                outstream << "        Size:                " << std::setw(5) << (resource.length << shift_count) << '\n';
+                outstream << "        Flags:              0x" << HexVal{resource.flags} << ' ';
 
-                if (info.flags & 0x10)
+                if (resource.flags & 0x10)
                     outstream << "MOVEABLE ";
-                if (info.flags & 0x20)
+                if (resource.flags & 0x20)
                     outstream << "PURE ";
-                if (info.flags & 0x40)
+                if (resource.flags & 0x40)
                     outstream << "PRELOAD";
                 ///NOTE: There are other bits in the flags word, but I haven't found documentation for them.
 
                 outstream << '\n';
+                if (resource.has_data)
+                    outstream << "Resource:\n\n" << HexDump{resource.bits.data(), resource.bits.size()} << '\n';
             }
             outstream << '\n';
         }

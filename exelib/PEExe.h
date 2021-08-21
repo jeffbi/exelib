@@ -249,18 +249,18 @@ public:
     PeSection(const PeSectionHeader &header, std::vector<uint8_t> &&data)
         : _header{header}
         , _data{data}
-        , _has_data{true}
+        , _data_loaded{true}
     {}
 
     PeSection(const PeSectionHeader &header, const std::vector<uint8_t> &data)
         : _header{header}
         , _data{data}
-        , _has_data{true}
+        , _data_loaded{true}
     {}
 
     PeSection(const PeSectionHeader &header)
         :_header{header}
-        , _has_data{false}
+        , _data_loaded{false}
     {}
 
     PeSection() = delete;
@@ -275,9 +275,9 @@ public:
     /// in which case the object's data container will be emptyer, just as if
     /// no data had been loaded. This function can be used to get a more
     /// definitive answer to whether data was loaed.
-    bool has_data() const noexcept
+    bool data_loaded() const noexcept
     {
-        return _has_data;
+        return _data_loaded;
     }
 
     /// \brief  Return a reference to the raw data container.
@@ -306,7 +306,7 @@ public:
 private:
     PeSectionHeader         _header;
     std::vector<uint8_t>    _data;
-    bool                    _has_data;
+    bool                    _data_loaded;
 };
 
 /// \brief  Contains information about the new PE section of an executable file
@@ -315,7 +315,7 @@ class PeExeInfo
 public:
     // Types
     using DataDirectory = std::vector<PeDataDirectoryEntry>;
-    using SectionContainer = std::vector<PeSection>;
+    using SectionTable  = std::vector<PeSection>;
 
 
     /// \brief  Construct a \c PeExeInfo object from a stream.
@@ -340,7 +340,7 @@ public:
     /// This header will be present in all PE executables.
     const PeImageFileHeader &header() const noexcept
     {
-        return _pe_image_file_header;
+        return _image_file_header;
     }
 
     /// \brief  Return a pointer to the 32-bit optional PE header, if it exists.
@@ -349,7 +349,7 @@ public:
     /// is a 32-bit PE type, so the returned pointer may be null.
     const PeOptionalHeader32 *optional_header_32() const noexcept
     {
-        return _pe_optional_32.get();
+        return _optional_32.get();
     }
 
     /// \brief  Return a pointer to the 64-bit optional PE header, if it exists.
@@ -358,26 +358,26 @@ public:
     /// is a 64-bit PE type, so the returned pointer may be null.
     const PeOptionalHeader64 *optional_header_64() const noexcept
     {
-        return _pe_optional_64.get();
+        return _optional_64.get();
     }
 
     const DataDirectory &data_directory() const noexcept
     {
-        return _pe_data_directory;
+        return _data_directory;
     }
 
-    const SectionContainer &sections() const noexcept
+    const SectionTable &sections() const noexcept
     {
-        return _pe_sections;
+        return _sections;
     }
 
 private:
-    size_t                              _header_position;       // absolute position in the file of the PE header. useful for offset calculations.
-    PeImageFileHeader                   _pe_image_file_header;  // The PE image file header structure for this file.
-    std::unique_ptr<PeOptionalHeader32> _pe_optional_32;        // Pointer to 32-bit Optional Header. Either this or the one below, never both.
-    std::unique_ptr<PeOptionalHeader64> _pe_optional_64;        // Pointer to 64-bit Optional Header. Either this or the one above, never both.
-    DataDirectory                       _pe_data_directory;     // The Data Directory
-    SectionContainer                    _pe_sections;           // The Sections info, headers and optionally raw data
+    size_t                              _header_position;   // absolute position in the file of the PE header. useful for offset calculations.
+    PeImageFileHeader                   _image_file_header; // The PE image file header structure for this file.
+    std::unique_ptr<PeOptionalHeader32> _optional_32;       // Pointer to 32-bit Optional Header. Either this or the one below, never both.
+    std::unique_ptr<PeOptionalHeader64> _optional_64;       // Pointer to 64-bit Optional Header. Either this or the one above, never both.
+    DataDirectory                       _data_directory;    // The Data Directory
+    SectionTable                        _sections;          // The Sections info, headers and optionally raw data
 
     void load_image_file_header(std::istream &stream);
     void load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header);

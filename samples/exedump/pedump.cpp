@@ -354,7 +354,7 @@ std::vector<std::string> get_section_header_characteristic_strings(uint32_t char
 }
 
 template <typename T>
-void dump_sections(const PeExeInfo::SectionContainer &sections, T image_base, std::ostream &outstream)
+void dump_sections(const PeExeInfo::SectionTable &sections, T image_base, std::ostream &outstream)
 {
     outstream << "Sections\n-------------------------------------------\n";
 
@@ -399,7 +399,7 @@ void dump_sections(const PeExeInfo::SectionContainer &sections, T image_base, st
         for (const auto &c : characteristics)
             outstream << "        " << c << '\n';
 
-        if (section.has_data())
+        if (section.data_loaded())
         {
             outstream << "\nSection Data #" << n << '\n';
             outstream << BasicHexDump(section.data().data(), section.data().size(), va);

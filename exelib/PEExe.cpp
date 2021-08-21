@@ -17,7 +17,7 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
 {
     load_image_file_header(stream);
 
-    if (_pe_image_file_header.optional_header_size != 0)    // should be zero only for object files, never for image files.
+    if (_image_file_header.optional_header_size != 0)    // should be zero only for object files, never for image files.
     {
         uint32_t nRVAs = 0;
 
@@ -27,15 +27,15 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
 
         if (magic == 0x010B)        // 32-bit optional header
         {
-            _pe_optional_32 = std::make_unique<PeOptionalHeader32>();
+            _optional_32 = std::make_unique<PeOptionalHeader32>();
             load_optional_header_32(stream);
-            nRVAs = _pe_optional_32->num_rva_and_sizes;
+            nRVAs = _optional_32->num_rva_and_sizes;
         }
         else if (magic == 0x020B)   // 64-bit optional header
         {
-            _pe_optional_64 = std::make_unique<PeOptionalHeader64>();
+            _optional_64 = std::make_unique<PeOptionalHeader64>();
             load_optional_header_64(stream);
-            nRVAs = _pe_optional_64->num_rva_and_sizes;
+            nRVAs = _optional_64->num_rva_and_sizes;
         }
         else                        // unrecognized optional header type
         {
@@ -43,19 +43,19 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
         }
 
         // Load the Data Directory
-        _pe_data_directory.reserve(nRVAs);
+        _data_directory.reserve(nRVAs);
         for (uint32_t i = 0; i < nRVAs; ++i)
         {
             PeDataDirectoryEntry entry;
             read(stream, &entry.virtual_address);
             read(stream, &entry.size);
 
-            _pe_data_directory.push_back(entry);
+            _data_directory.push_back(entry);
         }
 
         // Load the sections; headers and optionally raw data
-        _pe_sections.reserve(_pe_image_file_header.num_sections);
-        for (uint16_t i = 0; i < _pe_image_file_header.num_sections; ++i)
+        _sections.reserve(_image_file_header.num_sections);
+        for (uint16_t i = 0; i < _image_file_header.num_sections; ++i)
         {
             // load the section header
             PeSectionHeader header;
@@ -84,11 +84,11 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
                     stream.seekg(here);
                 }
 
-                _pe_sections.emplace_back(header, std::move(data));
+                _sections.emplace_back(header, std::move(data));
             }
             else
             {
-                _pe_sections.emplace_back(header);
+                _sections.emplace_back(header);
             }
         }
         //TODO: Load more here!!!
@@ -101,17 +101,17 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
 
 void PeExeInfo::load_image_file_header(std::istream &stream)
 {
-    read(stream, &_pe_image_file_header.signature);
-    if (_pe_image_file_header.signature != PeImageFileHeader::pe_signature)
+    read(stream, &_image_file_header.signature);
+    if (_image_file_header.signature != PeImageFileHeader::pe_signature)
         throw std::runtime_error("not a PE executable file.");
 
-    read(stream, &_pe_image_file_header.target_machine);
-    read(stream, &_pe_image_file_header.num_sections);
-    read(stream, &_pe_image_file_header.timestamp);
-    read(stream, &_pe_image_file_header.symbol_table_offset);
-    read(stream, &_pe_image_file_header.num_symbols);
-    read(stream, &_pe_image_file_header.optional_header_size);
-    read(stream, &_pe_image_file_header.characteristics);
+    read(stream, &_image_file_header.target_machine);
+    read(stream, &_image_file_header.num_sections);
+    read(stream, &_image_file_header.timestamp);
+    read(stream, &_image_file_header.symbol_table_offset);
+    read(stream, &_image_file_header.num_symbols);
+    read(stream, &_image_file_header.optional_header_size);
+    read(stream, &_image_file_header.characteristics);
 }
 
 void PeExeInfo::load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header)
@@ -128,10 +128,10 @@ void PeExeInfo::load_optional_header_base(std::istream &stream, PeOptionalHeader
 
 void PeExeInfo::load_optional_header_32(std::istream &stream)
 {
-    if (!_pe_optional_32)
+    if (!_optional_32)
         throw std::runtime_error("Cannot read into empty PE optional header (32-bit)");
 
-    auto  &header = *_pe_optional_32;
+    auto  &header = *_optional_32;
 
     load_optional_header_base(stream, header);
     read(stream, &header.base_of_data);
@@ -160,10 +160,10 @@ void PeExeInfo::load_optional_header_32(std::istream &stream)
 
 void PeExeInfo::load_optional_header_64(std::istream &stream)
 {
-    if (!_pe_optional_64)
+    if (!_optional_64)
         throw std::runtime_error("Cannot read into empty PE optional header (64-bit)");
 
-    auto  &header = *_pe_optional_64;
+    auto  &header = *_optional_64;
 
     load_optional_header_base(stream, header);
     read(stream, &header.image_base);

@@ -107,6 +107,9 @@ struct NeSegmentEntry
         RelocInfo   = 0x0100,
         Discard     = 0xF000
     };
+
+    bool                    data_loaded {false};
+    std::vector<uint8_t>    bits;
 };
 
 /// \brief  Entry in the Resource sub-table. Describes a single resource.
@@ -121,7 +124,7 @@ struct NeResource
     // the above items are what is in the file
 
     std::string             name;       // name, if any, of the resource, extracted from the name table.
-    bool                    has_data {false};
+    bool                    data_loaded {false};
     std::vector<uint8_t>    bits;
 };
 
@@ -169,7 +172,7 @@ public:
         load_header(stream);
 
         load_entry_table(stream);
-        load_segment_table(stream);
+        load_segment_table(stream, options & LoadOptions::LoadSegmentData);
         load_resource_table(stream, options & LoadOptions::LoadResourceData);   // _res_shift_count is set here
         load_resident_name_table(stream);
         load_nonresident_name_table(stream);
@@ -283,8 +286,8 @@ private:
 
     void load_header(std::istream &stream);
     void load_entry_table(std::istream &stream);
-    void load_segment_table(std::istream &stream);
-    void load_resource_table(std::istream &stream, bool load_raw_data);
+    void load_segment_table(std::istream &stream, bool include_segment_data);
+    void load_resource_table(std::istream &stream, bool include_raw_data);
     void load_resident_name_table(std::istream &stream);
     void load_imported_name_table(std::istream &stream);
     void load_module_name_table(std::istream &stream);

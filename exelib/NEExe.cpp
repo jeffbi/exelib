@@ -17,12 +17,26 @@
 
 namespace {
 
-void load_seg_table_entry(std::istream &stream, NeSegmentEntry &entry)
+void load_seg_table_entry(std::istream &stream, NeSegmentEntry &entry, uint16_t align_shift, bool include_segment_data)
 {
     read(stream, &entry.sector);
     read(stream, &entry.length);
     read(stream, &entry.flags);
     read(stream, &entry.min_alloc);
+
+    if (include_segment_data)
+    {
+        if (entry.sector)   // zero means there is no sector data.
+        {
+            auto here = stream.tellg();
+            stream.seekg(static_cast<uint32_t>(entry.sector) << align_shift);
+            size_t size = entry.length ? entry.length : 65536;
+            entry.bits.resize(size);
+            stream.read(reinterpret_cast<char *>(&entry.bits[0]), size);
+            stream.seekg(here);
+        }
+        entry.data_loaded = true;  // say we have data even if we didn't read anything.
+    }
 }
 
 //TODO: move this to a common location?
@@ -120,17 +134,21 @@ void NeExeInfo::load_entry_table(std::istream &stream)
     }
 }
 
-void NeExeInfo::load_segment_table(std::istream &stream)
+void NeExeInfo::load_segment_table(std::istream &stream, bool include_segment_data)
 {
     if (header().num_segment_entries != 0)
     {
+        auto alignment_shift = header().alignment_shift_count;
+        if (alignment_shift == 0)
+            alignment_shift = 9;
+
         _segment_table.resize(header().num_segment_entries);
 
         auto    table_location = header_position() + header().segment_table_offset;
 
         stream.seekg(table_location);
         for (int i=0; i < header().num_segment_entries; ++i)
-            load_seg_table_entry(stream, _segment_table[i]);
+            load_seg_table_entry(stream, _segment_table[i], alignment_shift, include_segment_data);
     }
 }
 
@@ -218,11 +236,11 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
                         stream.seekg(offset);
                         stream.read(reinterpret_cast<char *>(&resource.bits[0]), resource.bits.size());
                     }
-                    resource.has_data = true;
+                    resource.data_loaded = true;
                 }
                 else
                 {
-                    resource.has_data = false;
+                    resource.data_loaded = false;
                 }
             }
         }

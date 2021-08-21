@@ -221,7 +221,7 @@ void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, st
 
         for (const auto &entry : table)
         {
-            auto sector_offset = static_cast<uint16_t>(entry.sector) << align;
+            auto sector_offset = static_cast<uint32_t>(entry.sector) << align;
 
             outstream << (entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE");
             outstream << "     0x" << HexVal{sector_offset};
@@ -238,6 +238,9 @@ void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, st
             if (entry.flags & NeSegmentEntry::Discard)
                 outstream << "DISCARDABLE";
             outstream << '\n';
+
+            if (entry.data_loaded)
+                outstream << "Segment Data:\n" <<HexDump{entry.bits.data(), entry.bits.size()} << '\n';
         }
     }
     else
@@ -274,7 +277,7 @@ void dump_resource_table(const NeExeInfo::ResourceTable &table, uint16_t shift_c
                 ///NOTE: There are other bits in the flags word, but I haven't found documentation for them.
 
                 outstream << '\n';
-                if (resource.has_data)
+                if (resource.data_loaded)
                     outstream << "Resource:\n\n" << HexDump{resource.bits.data(), resource.bits.size()} << '\n';
             }
             outstream << '\n';

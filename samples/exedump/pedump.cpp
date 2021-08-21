@@ -402,7 +402,7 @@ void dump_sections(const PeExeInfo::SectionTable &sections, T image_base, std::o
         if (section.data_loaded())
         {
             outstream << "\nSection Data #" << n << '\n';
-            outstream << BasicHexDump(section.data().data(), section.data().size(), va);
+            outstream << BasicHexDump{section.data().data(), section.data().size(), va};
         }
 
         ++n;

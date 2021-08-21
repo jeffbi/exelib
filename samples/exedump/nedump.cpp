@@ -208,39 +208,61 @@ void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outst
         outstream << "no entries\n";
 }
 
+void print_segment_flags(uint16_t flags, std::ostream &outstream)
+{
+    outstream << ((flags & NeSegmentEntry::Preload) ? " PRELOAD " : " ");
+
+    if (flags & NeSegmentEntry::RelocInfo)
+        outstream << "RELOCINFO ";
+    if (flags & NeSegmentEntry::Moveable)
+        outstream << "MOVEABLE ";
+    if (flags & NeSegmentEntry::Discard)
+        outstream << "DISCARDABLE";
+}
+
 void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, std::ostream &outstream)
 {
     outstream << "Segment Table\n-------------------------------------------\n";
     if (table.size())
     {
-        outstream << "Type  Sector offset  Length  Min. alloc  Flags\n"
-                  << "----  -------------  ------  ----------  ------\n";
-
         if (align == 0)
             align = 9;  // default shift-count value
 
-        for (const auto &entry : table)
+        if (table[0].data_loaded)
         {
-            auto sector_offset = static_cast<uint32_t>(entry.sector) << align;
+            for (const auto &entry : table)
+            {
+                auto sector_offset = static_cast<uint32_t>(entry.sector) << align;
 
-            outstream << (entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE");
-            outstream << "     0x" << HexVal{sector_offset};
-            outstream << "   " << std::setw(5) << entry.length;
-            outstream << "       " << std::setw(5) << entry.min_alloc;
-
-            outstream << "  0x" << HexVal{entry.flags};
-            outstream << ((entry.flags & NeSegmentEntry::Preload) ? " PRELOAD " : " ");
-
-            if (entry.flags & NeSegmentEntry::RelocInfo)
-                outstream << "RELOCINFO ";
-            if (entry.flags & NeSegmentEntry::Moveable)
-                outstream << "MOVEABLE ";
-            if (entry.flags & NeSegmentEntry::Discard)
-                outstream << "DISCARDABLE";
-            outstream << '\n';
-
-            if (entry.data_loaded)
+                outstream << "Type: " << (entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE")
+                          << "  Offset: 0x" << HexVal{sector_offset}
+                          << "  Length: " << std::setw(5) << entry.length
+                          << "  Min. Alloc: " << std::setw(5) << entry.min_alloc
+                          << "  Flags: 0x" << HexVal{entry.flags};
+                print_segment_flags(entry.flags, outstream);
+                outstream << '\n';
                 outstream << "Segment Data:\n" <<HexDump{entry.bits.data(), entry.bits.size()} << '\n';
+            }
+        }
+        else
+        {
+            // display just a summary
+            outstream << "Type  Sector offset  Length  Min. alloc  Flags\n"
+                      << "----  -------------  ------  ----------  ------\n";
+
+            for (const auto &entry : table)
+            {
+                auto sector_offset = static_cast<uint32_t>(entry.sector) << align;
+
+                outstream << (entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE");
+                outstream << "     0x" << HexVal{sector_offset};
+                outstream << "   " << std::setw(5) << entry.length;
+                outstream << "       " << std::setw(5) << entry.min_alloc;
+
+                outstream << "  0x" << HexVal{entry.flags};
+                print_segment_flags(entry.flags, outstream);
+                outstream << '\n';
+            }
         }
     }
     else

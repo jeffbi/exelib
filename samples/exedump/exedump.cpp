@@ -47,9 +47,28 @@ void dump_mz_header(const MzExeHeader &header, std::ostream &outstream)
     outstream << "New header offset:              0x" << HexVal{header.new_header_offset} << '\n';
 }
 
+void dump_relocation_table(const MzExeInfo::RelocationTable &table, std::ostream &outstream)
+{
+    outstream << "\nRelocation Table:\n-------------------------------------------\n";
+
+    if (table.size())
+    {
+        outstream << "Offset    Segment\n"
+                  << "------    -------\n";
+        for (const auto &entry : table)
+            outstream << "0x" << HexVal{entry.offset} << "    0x" << HexVal{entry.segment} << '\n';
+    }
+    else
+    {
+        outstream << "No Relocation Table entries\n";
+    }
+}
+
 void dump_exe_info(const ExeInfo &exe_info, std::ostream &outstream = std::cout)
 {
     dump_mz_header(exe_info.mz_part()->header(), outstream);
+    if (exe_info.mz_part()->relocation_table_loaded())
+        dump_relocation_table(exe_info.mz_part()->relocation_table(), outstream);
 
     switch (exe_info.executable_type())
     {
@@ -93,7 +112,7 @@ void dump_exe(const char *path)
     if (fs.is_open())
     {
         std::cout << "Dump of " << path << '\n';
-        dump_exe_info(ExeInfo(fs, LoadOptions::LoadAllData));   // Here we're loading all the section raw data so we can output it in hexdumps
+        dump_exe_info(ExeInfo(fs, LoadOptions::LoadAllData));   // Here we're loading all the raw data so we can output it in hexdumps
     }
     else
     {

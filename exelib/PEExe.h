@@ -272,7 +272,7 @@ public:
     /// \brief  Return a value indicating whether the section's raw data was loaded.
     ///
     /// It is conceiveably possible that a section may have zero-length data,
-    /// in which case the object's data container will be emptyer, just as if
+    /// in which case the object's data container will be empty, just as if
     /// no data had been loaded. This function can be used to get a more
     /// definitive answer to whether data was loaed.
     bool data_loaded() const noexcept

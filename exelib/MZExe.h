@@ -53,14 +53,18 @@ struct MzRelocPointer
 class MzExeInfo
 {
 public:
+    using RelocationTable = std::vector<MzRelocPointer>;
+
     /// \brief  Construct an \c MzExeInfo object from a stream.
     ///
     /// \param stream   An \c std::istream instance from which to read
     /// \param options  Flags indicating what portions of the file to load.
     MzExeInfo(std::istream &stream, LoadOptions::Options options)
+        : _loaded_relocation_table{false}
     {
         load_header(stream);
-        load_relocation_table(stream, _header.relocation_table_pos, _header.num_relocation_items);
+        if (options & LoadOptions::LoadMzRelocationData)
+            load_relocation_table(stream, _header.relocation_table_pos, _header.num_relocation_items);
     }
 
     /// \brief  Return a reference to the MZ header.
@@ -69,8 +73,14 @@ public:
         return _header;
     }
 
+    /// \brief  Return a boolean indicating whether the relocation table was loaded
+    bool relocation_table_loaded() const noexcept
+    {
+        return _loaded_relocation_table;
+    }
+
     /// \brief  Return a reference to the Relocation Table.
-    const std::vector<MzRelocPointer> &relocation_table() const noexcept
+    const RelocationTable &relocation_table() const noexcept
     {
         return _relocation_table;
     }
@@ -78,6 +88,7 @@ public:
 private:
     MzExeHeader                 _header;
     std::vector<MzRelocPointer> _relocation_table;
+    bool                        _loaded_relocation_table;
 
     void load_header(std::istream &stream);
     void load_relocation_table(std::istream &stream, uint16_t location, uint16_t count);

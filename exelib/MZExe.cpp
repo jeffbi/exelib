@@ -58,8 +58,6 @@ void MzExeInfo::load_header(std::istream &stream)
 /// \param count    Number of entries in the relocation table
 void MzExeInfo::load_relocation_table(std::istream &stream, uint16_t location, uint16_t count)
 {
-    _relocation_table.clear();
-
     if (count)
     {
         _relocation_table.resize(count);
@@ -75,4 +73,5 @@ void MzExeInfo::load_relocation_table(std::istream &stream, uint16_t location, u
             _relocation_table[i] = reloc;
         }
     }
+    _loaded_relocation_table = true;
 }

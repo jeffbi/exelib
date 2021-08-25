@@ -303,6 +303,29 @@ void dump_data_directory(const PeExeInfo::DataDirectory &data_dir, std::ostream 
     }
 }
 
+void dump_imports_table(const PeExeInfo::ImportDirectory &imports, std::ostream &outstream)
+{
+    outstream << "Imports\n-------------------------------------------\n";
+    outstream << "Number of imported modules: " << imports.size() << '\n';
+    for (const auto &entry : imports)
+    {
+        outstream << "    " << entry.module_name << '\n'
+                  << "        " << "Number of imported functions: " << entry.lookup_table.size() << '\n';
+        for (const auto &lookup_entry : entry.lookup_table)
+        {
+            outstream << "            ";
+
+            if (lookup_entry.ord_name_flag)
+                outstream << "Ordinal: 0x" << HexVal{lookup_entry.ordinal};
+            else
+                outstream << "Hint: 0x" << HexVal{lookup_entry.hint} << "  Name: " << lookup_entry.name;
+
+            outstream << '\n';
+        }
+        outstream << '\n';
+    }
+}
+
 std::vector<std::string> get_section_header_characteristic_strings(uint32_t characteristics)
 {
     using ut = std::underlying_type<PeSectionHeaderCharacteristics>::type;
@@ -438,7 +461,8 @@ void dump_pe_info(const PeExeInfo &info, std::ostream &outstream)
     dump_data_directory(info.data_directory(), outstream);
     outstream << separator << std::endl;
 
-    //dump_section_headers(info.section_headers(), outstream);
+    dump_imports_table(info.imports(), outstream);
+
     if (info.optional_header_32())
         dump_sections(info.sections(), info.optional_header_32()->image_base, outstream);
     else

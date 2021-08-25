@@ -309,13 +309,47 @@ private:
     bool                    _data_loaded;
 };
 
+/// \brief  Describes an entry in the Import Lookup Table.
+struct PeImportLookupEntry
+{
+    uint32_t    ord_name_flag : 1;  /// If 1 the entry uses an ordinal number, otherwise an entry from the Hint/Name Table
+    union {
+        uint32_t    ordinal  : 16;  /// The import's ordinal number, if ord_name_flag is 1
+        uint32_t    name_rva : 31;  /// The RVA of the entry in the Hint/Name Table if ord_name_flag is 0
+    };
+    // The above is what's in the file.
+
+    // These are extracted from the Hint/Name table.
+    // That table is not loaded separately, its data is stored here.
+    uint16_t    hint;   /// Hint value from the Hint/Name Table. Meaningless if ord_name_flag is 1
+    std::string name;   /// Name read from the Hint/Name Table.  Meaningless if ord_name_flag is 1
+};
+
+/// \brief  Describes an entry in the Import Directory Table.
+struct PeImportDirectoryEntry
+{
+    using LookupTable = std::vector<PeImportLookupEntry>;
+
+    uint32_t    import_lookup_table_rva;    /// RVA of the Import Lookup Table, where function ordinals or names are stored.
+    uint32_t    timestamp;                  /// Timestamp value. Always zero in the file, set after the image is loaded and bound.
+    uint32_t    forwarder_chain;            /// Index of the first forwarder reference
+    uint32_t    name_rva;                   /// RVA of the imported module's name
+    uint32_t    import_address_table_rva;   /// RVA of the Import Address Table. Same content as \c import_lookup_table_rva, until the image is loaded and bound.
+    // The above is what's in the file.
+
+    std::string module_name;                /// The name of the imported module, extracted via the \c name_rva value.
+    LookupTable lookup_table;               /// Table of function names or ordinal numbers imported from this imported module.
+};
+
+
 /// \brief  Contains information about the new PE section of an executable file
 class PeExeInfo
 {
 public:
     // Types
-    using DataDirectory = std::vector<PeDataDirectoryEntry>;
-    using SectionTable  = std::vector<PeSection>;
+    using DataDirectory     = std::vector<PeDataDirectoryEntry>;
+    using SectionTable      = std::vector<PeSection>;
+    using ImportDirectory   = std::vector<PeImportDirectoryEntry>;
 
 
     /// \brief  Construct a \c PeExeInfo object from a stream.
@@ -371,6 +405,11 @@ public:
         return _sections;
     }
 
+    const ImportDirectory &imports() const noexcept
+    {
+        return _imports;
+    }
+
 private:
     size_t                              _header_position;   // absolute position in the file of the PE header. useful for offset calculations.
     PeImageFileHeader                   _image_file_header; // The PE image file header structure for this file.
@@ -378,6 +417,7 @@ private:
     std::unique_ptr<PeOptionalHeader64> _optional_64;       // Pointer to 64-bit Optional Header. Either this or the one above, never both.
     DataDirectory                       _data_directory;    // The Data Directory
     SectionTable                        _sections;          // The Sections info, headers and optionally raw data
+    ImportDirectory                     _imports;           // The Import Directory, including read import module names and function names.
 
     void load_image_file_header(std::istream &stream);
     void load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header);

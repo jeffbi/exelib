@@ -12,6 +12,35 @@
 #include "PEExe.h"
 #include "readstream.h"
 
+namespace {
+
+const PeSection *find_section_by_rva(uint32_t rva, const PeExeInfo::SectionTable &sections)
+{
+    for (int i = 0; i < sections.size(); ++i)
+    {
+        if (rva >= sections[i].virtual_address())
+        {
+            if (i == sections.size() - 1)
+                return &sections[i];    // this is the last one, so it must be it.
+
+            //if (i < sections.size() - 1)
+            //{
+                if (rva < sections[i+1].virtual_address())
+                    return &sections[i];
+            //}
+        }
+    }
+
+    return nullptr;
+}
+
+inline uint32_t get_file_offset(uint32_t rva, const PeSection &section)
+{
+    return rva - section.virtual_address() + section.header().raw_data_position;
+}
+
+}   // anonymous namespace
+
 PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::Options options)
     : _header_position{header_location}
 {
@@ -25,6 +54,8 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
         read(stream, &magic);
         stream.seekg(-static_cast<int>(sizeof(magic)), std::ios::cur);
 
+        bool using_64{false};
+
         if (magic == 0x010B)        // 32-bit optional header
         {
             _optional_32 = std::make_unique<PeOptionalHeader32>();
@@ -36,6 +67,7 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
             _optional_64 = std::make_unique<PeOptionalHeader64>();
             load_optional_header_64(stream);
             nRVAs = _optional_64->num_rva_and_sizes;
+            using_64 = true;
         }
         else                        // unrecognized optional header type
         {
@@ -91,6 +123,116 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
                 _sections.emplace_back(header);
             }
         }
+
+        // Load import table
+        if (_data_directory.size() >= 2)
+        {
+            auto rva{_data_directory[1].virtual_address};
+            auto section{find_section_by_rva(rva, _sections)};
+
+            if (section)
+            {
+                uint32_t    alignment{ _optional_64 ? _optional_64->section_alignment : _optional_32->section_alignment };
+
+                auto pos = get_file_offset(rva, *section);
+
+                auto here = stream.tellg();
+                stream.seekg(pos);
+                //std::vector<PeImportDirectoryEntry> entries;
+                PeImportDirectoryEntry              entry;
+                while (true)
+                {
+                    read(stream, &entry.import_lookup_table_rva);
+                    read(stream, &entry.timestamp);
+                    read(stream, &entry.forwarder_chain);
+                    read(stream, &entry.name_rva);
+                    read(stream, &entry.import_address_table_rva);
+
+                    if (   entry.import_lookup_table_rva == 0
+                        && entry.timestamp == 0
+                        && entry.forwarder_chain == 0
+                        && entry.name_rva == 0
+                        && entry.import_address_table_rva == 0)
+                        break;
+
+                    _imports.push_back(entry);
+                    int k=0;
+                }
+                // Load the DLL names
+                for (auto &&entry : _imports)
+                {
+                    stream.seekg(get_file_offset(entry.name_rva, *section));
+                    char    ch;
+                    while (true)
+                    {
+                        stream.read(&ch, sizeof(ch));
+                        if (ch == 0)
+                            break;
+                        entry.module_name.push_back(ch);
+                    }
+
+                    stream.seekg(get_file_offset(entry.import_address_table_rva, *section));
+                    while (true)
+                    {
+                        PeImportLookupEntry lookup_entry {0};
+                        if (using_64)
+                        {
+                            uint64_t value;
+                            read(stream, &value);
+                            if (value == 0)
+                                break;
+                            if (value & 0x8000000000000000)
+                            {
+                                lookup_entry.ord_name_flag = 1;
+                                lookup_entry.ordinal = value & 0xFFFF;
+                            }
+                            else
+                            {
+                                lookup_entry.ord_name_flag = 0;
+                                lookup_entry.name_rva = value & 0x7FFFFFFF;
+                            }
+                        }
+                        else
+                        {
+                            uint32_t value;
+                            read(stream, &value);
+                            if (value == 0)
+                                break;
+                            if (value & 0x80000000)
+                            {
+                                lookup_entry.ord_name_flag = 1;
+                                lookup_entry.ordinal = value & 0xFFFF;
+                            }
+                            else
+                            {
+                                lookup_entry.ord_name_flag = 0;
+                                lookup_entry.name_rva = value & 0x7FFFFFFF;
+                            }
+                        }
+
+                        if (lookup_entry.ord_name_flag == 0)
+                        {
+                            auto here = stream.tellg();
+                            stream.seekg(get_file_offset(lookup_entry.name_rva, *section));
+                            read(stream, &lookup_entry.hint);
+                            while (true)
+                            {
+                                char ch;
+                                read(stream, &ch);
+                                if (ch == 0)
+                                    break;
+                                lookup_entry.name.push_back(ch);
+                            }
+
+                            stream.seekg(here);
+                        }
+                        entry.lookup_table.push_back(lookup_entry);
+                    }
+                }
+                stream.seekg(here);
+            }
+        }
+
         //TODO: Load more here!!!
     }
     else

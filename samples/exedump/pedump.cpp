@@ -4,9 +4,11 @@
 /// \author Jeff Bienstadt
 ///
 
+#include <algorithm>
 #include <cstring>
 #include <ctime>
 #include <iomanip>
+#include <iterator>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -303,6 +305,41 @@ void dump_data_directory(const PeExeInfo::DataDirectory &data_dir, std::ostream 
     }
 }
 
+void dump_exports_table(const PeExports &exports, std::ostream &outstream)
+{
+    outstream << "Exports\n-------------------------------------------\n";
+    outstream << "DLL name:     " << exports.name << '\n'
+              << "Export flags:          0x" << HexVal{exports.directory.export_flags} << '\n'
+              << "Timestamp:             0x" << HexVal{exports.directory.timestamp} << ' ' << format_timestamp(exports.directory.timestamp) << '\n'
+              << "Version major:              " << std::setw(5) << exports.directory.version_major << '\n'
+              << "Version minor:              " << std::setw(5) << exports.directory.version_minor << '\n'
+              << "Name RVA:              0x" << HexVal{exports.directory.name_rva} << '\n'
+              << "Ordinal base:          " << std::setw(10) << exports.directory.ordinal_base << '\n'
+              << "Address Table entries: " << std::setw(10) << exports.directory.num_address_table_entries << '\n'
+              << "Name pointers:         " << std::setw(10) << exports.directory.num_name_pointers << '\n'
+              << "Export Address RVA:    0x" << HexVal{exports.directory.export_address_rva} << '\n'
+              << "Name Pointer RVA:      0x" << HexVal{exports.directory.name_pointer_rva} << '\n'
+              << "Ordinal Table RVA:     0x" << HexVal{exports.directory.ordinal_table_rva} << '\n';
+
+    outstream << "\n    Ordinal  RVA         Name"
+              << "\n    -------  ---         ----\n";
+    for (uint16_t i = 0; i < exports.address_table.size(); ++i)
+    {
+        if (exports.address_table[i].export_rva)
+        {
+            outstream << "      " << std::setw(5) << i + exports.directory.ordinal_base
+                      << "  0x" << HexVal{exports.address_table[i].export_rva};
+
+            const auto it = std::find(exports.ordinal_table.begin(), exports.ordinal_table.end(), i);
+            if (it != exports.ordinal_table.end())
+            {
+                outstream << "  " << exports.name_table[std::distance(exports.ordinal_table.begin(), it)];
+            }
+            outstream << '\n';
+        }
+    }
+}
+
 void dump_imports_table(const PeExeInfo::ImportDirectory &imports, std::ostream &outstream)
 {
     outstream << "Imports\n-------------------------------------------\n";
@@ -310,15 +347,24 @@ void dump_imports_table(const PeExeInfo::ImportDirectory &imports, std::ostream 
     for (const auto &entry : imports)
     {
         outstream << "    " << entry.module_name << '\n'
-                  << "        " << "Number of imported functions: " << entry.lookup_table.size() << '\n';
+                  << "        Import Address Table:               0x" << HexVal{entry.import_address_table_rva} << '\n'
+                  << "        Import Lookup Table:                0x" << HexVal{entry.import_lookup_table_rva} << '\n'
+                  << "        Time Stamp:                         0x" << HexVal{entry.timestamp} << ' ' << format_timestamp(entry.timestamp) << '\n'
+                  << "        Index of first forwarder reference: " << std::setw(10) << entry.forwarder_chain << '\n'
+                  << "        Number of imported functions:       " << std::setw(10) << entry.lookup_table.size() << '\n'
+                  << "            Ordinal or Hint  Name\n"
+                  << "            ---------------  ----\n";
+
         for (const auto &lookup_entry : entry.lookup_table)
         {
-            outstream << "            ";
+            outstream << "                ";
 
             if (lookup_entry.ord_name_flag)
-                outstream << "Ordinal: 0x" << HexVal{lookup_entry.ordinal};
+                //outstream << "Ordinal: 0x" << HexVal{lookup_entry.ordinal};
+                outstream << "0x" << HexVal(lookup_entry.ordinal);
             else
-                outstream << "Hint: 0x" << HexVal{lookup_entry.hint} << "  Name: " << lookup_entry.name;
+                //outstream << "Hint: 0x" << HexVal{lookup_entry.hint} << "  Name: " << lookup_entry.name;
+                outstream << "0x" << HexVal{lookup_entry.hint} << "       " << lookup_entry.name;
 
             outstream << '\n';
         }
@@ -461,7 +507,17 @@ void dump_pe_info(const PeExeInfo &info, std::ostream &outstream)
     dump_data_directory(info.data_directory(), outstream);
     outstream << separator << std::endl;
 
-    dump_imports_table(info.imports(), outstream);
+    if (info.has_exports())
+    {
+        dump_exports_table(*info.exports(), outstream);
+        outstream << separator << std::endl;
+    }
+
+    if (info.has_imports())
+    {
+        dump_imports_table(*info.imports(), outstream);
+        outstream << separator << std::endl;
+    }
 
     if (info.optional_header_32())
         dump_sections(info.sections(), info.optional_header_32()->image_base, outstream);

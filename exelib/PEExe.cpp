@@ -7,6 +7,9 @@
 #include <algorithm>
 #include <exception>
 #include <istream>
+#include <memory>
+#include <string>
+#include <utility>
 
 #include "LoadOptions.h"
 #include "PEExe.h"
@@ -16,18 +19,15 @@ namespace {
 
 const PeSection *find_section_by_rva(uint32_t rva, const PeExeInfo::SectionTable &sections)
 {
-    for (int i = 0; i < sections.size(); ++i)
+    for (size_t i = 0; i < sections.size(); ++i)
     {
         if (rva >= sections[i].virtual_address())
         {
             if (i == sections.size() - 1)
                 return &sections[i];    // this is the last one, so it must be it.
 
-            //if (i < sections.size() - 1)
-            //{
-                if (rva < sections[i+1].virtual_address())
-                    return &sections[i];
-            //}
+            if (rva < sections[i+1].virtual_address())
+                return &sections[i];
         }
     }
 
@@ -37,6 +37,29 @@ const PeSection *find_section_by_rva(uint32_t rva, const PeExeInfo::SectionTable
 inline uint32_t get_file_offset(uint32_t rva, const PeSection &section)
 {
     return rva - section.virtual_address() + section.header().raw_data_position;
+}
+
+#if !defined(EXELIB_NO_LOAD_FORWARDERS)
+inline bool is_rva_within_section(uint32_t rva, const PeSection &section)
+{
+    return (rva >= section.virtual_address()) && (rva <= section.virtual_address() + section.raw_data_size());
+}
+#endif
+
+std::string read_sz_string(std::istream &stream)
+{
+    std::string rv;
+    char        ch;
+
+    while (true)
+    {
+        read(stream, &ch);
+        if (ch == 0)
+            break;
+        rv.push_back(ch);
+    }
+
+    return rv;
 }
 
 }   // anonymous namespace
@@ -124,114 +147,11 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
             }
         }
 
-        // Load import table
-        if (_data_directory.size() >= 2)
-        {
-            auto rva{_data_directory[1].virtual_address};
-            auto section{find_section_by_rva(rva, _sections)};
+        // Load Export Table
+        load_exports(stream);
 
-            if (section)
-            {
-                uint32_t    alignment{ _optional_64 ? _optional_64->section_alignment : _optional_32->section_alignment };
-
-                auto pos = get_file_offset(rva, *section);
-
-                auto here = stream.tellg();
-                stream.seekg(pos);
-                //std::vector<PeImportDirectoryEntry> entries;
-                PeImportDirectoryEntry              entry;
-                while (true)
-                {
-                    read(stream, &entry.import_lookup_table_rva);
-                    read(stream, &entry.timestamp);
-                    read(stream, &entry.forwarder_chain);
-                    read(stream, &entry.name_rva);
-                    read(stream, &entry.import_address_table_rva);
-
-                    if (   entry.import_lookup_table_rva == 0
-                        && entry.timestamp == 0
-                        && entry.forwarder_chain == 0
-                        && entry.name_rva == 0
-                        && entry.import_address_table_rva == 0)
-                        break;
-
-                    _imports.push_back(entry);
-                    int k=0;
-                }
-                // Load the DLL names
-                for (auto &&entry : _imports)
-                {
-                    stream.seekg(get_file_offset(entry.name_rva, *section));
-                    char    ch;
-                    while (true)
-                    {
-                        stream.read(&ch, sizeof(ch));
-                        if (ch == 0)
-                            break;
-                        entry.module_name.push_back(ch);
-                    }
-
-                    stream.seekg(get_file_offset(entry.import_address_table_rva, *section));
-                    while (true)
-                    {
-                        PeImportLookupEntry lookup_entry {0};
-                        if (using_64)
-                        {
-                            uint64_t value;
-                            read(stream, &value);
-                            if (value == 0)
-                                break;
-                            if (value & 0x8000000000000000)
-                            {
-                                lookup_entry.ord_name_flag = 1;
-                                lookup_entry.ordinal = value & 0xFFFF;
-                            }
-                            else
-                            {
-                                lookup_entry.ord_name_flag = 0;
-                                lookup_entry.name_rva = value & 0x7FFFFFFF;
-                            }
-                        }
-                        else
-                        {
-                            uint32_t value;
-                            read(stream, &value);
-                            if (value == 0)
-                                break;
-                            if (value & 0x80000000)
-                            {
-                                lookup_entry.ord_name_flag = 1;
-                                lookup_entry.ordinal = value & 0xFFFF;
-                            }
-                            else
-                            {
-                                lookup_entry.ord_name_flag = 0;
-                                lookup_entry.name_rva = value & 0x7FFFFFFF;
-                            }
-                        }
-
-                        if (lookup_entry.ord_name_flag == 0)
-                        {
-                            auto here = stream.tellg();
-                            stream.seekg(get_file_offset(lookup_entry.name_rva, *section));
-                            read(stream, &lookup_entry.hint);
-                            while (true)
-                            {
-                                char ch;
-                                read(stream, &ch);
-                                if (ch == 0)
-                                    break;
-                                lookup_entry.name.push_back(ch);
-                            }
-
-                            stream.seekg(here);
-                        }
-                        entry.lookup_table.push_back(lookup_entry);
-                    }
-                }
-                stream.seekg(here);
-            }
-        }
+        // Load Import Table
+        load_imports(stream, using_64);
 
         //TODO: Load more here!!!
     }
@@ -329,4 +249,216 @@ void PeExeInfo::load_optional_header_64(std::istream &stream)
     read(stream, &header.size_of_heap_commit);
     read(stream, &header.loader_flags);
     read(stream, &header.num_rva_and_sizes);
+}
+
+
+void PeExeInfo::load_exports(std::istream &stream)
+{
+    if (_data_directory.size() >= 1)
+    {
+        if (_data_directory[0].size == 0)
+            return;
+
+        auto    rva{_data_directory[0].virtual_address};
+        auto    section{find_section_by_rva(rva, _sections)};
+
+        if (section)
+        {
+            _exports = std::make_unique<PeExports>();
+
+            auto    pos{get_file_offset(rva, *section)};
+            auto    here{stream.tellg()};
+            stream.seekg(pos);
+
+            auto    &exports_directory = _exports->directory;
+            read(stream, &exports_directory.export_flags);
+            read(stream, &exports_directory.timestamp);
+            read(stream, &exports_directory.version_major);
+            read(stream, &exports_directory.version_minor);
+            read(stream, &exports_directory.name_rva);
+            read(stream, &exports_directory.ordinal_base);
+            read(stream, &exports_directory.num_address_table_entries);
+            read(stream, &exports_directory.num_name_pointers);
+            read(stream, &exports_directory.export_address_rva);
+            read(stream, &exports_directory.name_pointer_rva);
+            read(stream, &exports_directory.ordinal_table_rva);
+
+            stream.seekg(get_file_offset(exports_directory.name_rva, *section));
+            _exports->name = read_sz_string(stream);
+
+            // Load the Export Address Table
+#if !defined(EXELIB_NO_LOAD_FORWARDERS)
+            // For the moment I'm not going to attempt to load the forwarder
+            // strings. I have found at least one DLL for which this code
+            // does not work. In that DLL, we're reading garbage (code, it
+            // actually looks like) at the specified location of the forwarder
+            // string. I'm still tracking this down. In the meantime the above
+            // preprocessor symbol should remain undefined.
+            if (exports_directory.num_address_table_entries)
+            {
+                stream.seekg(get_file_offset(exports_directory.export_address_rva, *section));
+                for (uint32_t i = 0; i < exports_directory.num_address_table_entries; ++i)
+                {
+                    PeExportAddressTableEntry   entry;
+
+                    read(stream, &entry.export_rva);
+                    if (entry.export_rva != 0)  //NOTE: We probably should not have to do this check
+                        entry.is_forwarder = is_rva_within_section(entry.export_rva, *section);
+                    else
+                        entry.is_forwarder = false;
+                    if (entry.is_forwarder)
+                        _exports->forward_indices.push_back(i);
+                    _exports->address_table.push_back(entry);
+                }
+
+                // get the forwarder strings
+                for (auto &&entry : _exports->address_table)
+                {
+                    if (entry.is_forwarder)
+                    {
+                        auto pos = get_file_offset(entry.export_rva, *section);
+                        stream.seekg(pos);
+                        entry.forwarder_name = read_sz_string(stream);
+                    }
+                }
+            }
+#else
+            // Here we load the Export Address Table, but ignore the forwarders.
+            if (exports_directory.num_address_table_entries)
+            {
+                stream.seekg(get_file_offset(exports_directory.export_address_rva, *section));
+                for (uint32_t i = 0; i < exports_directory.num_address_table_entries; ++i)
+                {
+                    PeExportAddressTableEntry   entry;
+
+                    read(stream, &entry.export_rva);
+                    _exports->address_table.push_back(entry);
+                }
+            }
+#endif
+
+            // Load the Export Name Pointer Table, the Export Ordinal Table, and the Export Name Table
+            if (exports_directory.num_name_pointers)
+            {
+                auto pos = get_file_offset(exports_directory.name_pointer_rva, *section);
+                stream.seekg(pos);
+                _exports->name_pointer_table.resize(exports_directory.num_name_pointers);
+                stream.read(reinterpret_cast<char *>(_exports->name_pointer_table.data()), _exports->name_pointer_table.size() * sizeof(_exports->name_pointer_table[0]));
+
+                pos = get_file_offset(exports_directory.ordinal_table_rva, *section);
+                stream.seekg(pos);
+                _exports->ordinal_table.resize(exports_directory.num_name_pointers);
+                stream.read(reinterpret_cast<char *>(_exports->ordinal_table.data()), _exports->ordinal_table.size() * sizeof(_exports->ordinal_table[0]));
+
+                _exports->name_table.reserve(exports_directory.num_name_pointers);
+                for (auto rva : _exports->name_pointer_table)
+                {
+                    pos = get_file_offset(rva, *section);
+                    stream.seekg(pos);
+                    _exports->name_table.emplace_back(read_sz_string(stream));
+                }
+            }
+
+            stream.seekg(here);
+        }
+    }
+}
+
+void PeExeInfo::load_imports(std::istream &stream, bool using_64)
+{
+    if (_data_directory.size() >= 2)
+    {
+        if (_data_directory[1].size == 0)
+            return;
+
+        auto    rva{_data_directory[1].virtual_address};
+        auto    section{find_section_by_rva(rva, _sections)};
+
+        if (section)
+        {
+            _imports = std::make_unique<ImportDirectory>();
+
+            auto    pos{get_file_offset(rva, *section)};
+            auto    here{stream.tellg()};
+            stream.seekg(pos);
+
+            PeImportDirectoryEntry  entry;
+            while (true)
+            {
+                read(stream, &entry.import_lookup_table_rva);
+                read(stream, &entry.timestamp);
+                read(stream, &entry.forwarder_chain);
+                read(stream, &entry.name_rva);
+                read(stream, &entry.import_address_table_rva);
+
+                if (   entry.import_lookup_table_rva == 0
+                    && entry.timestamp == 0
+                    && entry.forwarder_chain == 0
+                    && entry.name_rva == 0
+                    && entry.import_address_table_rva == 0)
+                    break;
+
+                _imports->push_back(entry);
+                int k=0;
+            }
+            // Load the DLL names
+            for (auto &&entry : *_imports)
+            {
+                stream.seekg(get_file_offset(entry.name_rva, *section));
+                entry.module_name = read_sz_string(stream);
+
+                stream.seekg(get_file_offset(entry.import_address_table_rva, *section));
+                while (true)
+                {
+                    PeImportLookupEntry lookup_entry {0};
+                    if (using_64)
+                    {
+                        uint64_t value;
+                        read(stream, &value);
+                        if (value == 0)
+                            break;
+                        if (value & 0x8000000000000000)
+                        {
+                            lookup_entry.ord_name_flag = 1;
+                            lookup_entry.ordinal = value & 0xFFFF;
+                        }
+                        else
+                        {
+                            lookup_entry.ord_name_flag = 0;
+                            lookup_entry.name_rva = value & 0x7FFFFFFF;
+                        }
+                    }
+                    else
+                    {
+                        uint32_t value;
+                        read(stream, &value);
+                        if (value == 0)
+                            break;
+                        if (value & 0x80000000)
+                        {
+                            lookup_entry.ord_name_flag = 1;
+                            lookup_entry.ordinal = value & 0xFFFF;
+                        }
+                        else
+                        {
+                            lookup_entry.ord_name_flag = 0;
+                            lookup_entry.name_rva = value & 0x7FFFFFFF;
+                        }
+                    }
+
+                    if (lookup_entry.ord_name_flag == 0)
+                    {
+                        auto here = stream.tellg();
+                        stream.seekg(get_file_offset(lookup_entry.name_rva, *section));
+                        read(stream, &lookup_entry.hint);
+                        lookup_entry.name = read_sz_string(stream);
+
+                        stream.seekg(here);
+                    }
+                    entry.lookup_table.push_back(lookup_entry);
+                }
+            }
+            stream.seekg(here);
+        }
+    }
 }

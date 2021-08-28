@@ -302,6 +302,17 @@ public:
         return _header.virtual_address;
     }
 
+    /// \brief  Convenience function to return the section's virtual size.
+    uint32_t virtual_size() const noexcept
+    {
+        return _header.virtual_size;
+    }
+
+    /// \brief  Convenience function to return the section's raw data size.
+    uint32_t raw_data_size() const noexcept
+    {
+        return _header.size_of_raw_data;
+    }
 
 private:
     PeSectionHeader         _header;
@@ -309,11 +320,65 @@ private:
     bool                    _data_loaded;
 };
 
+/// \brief  Describes the Export Directory Table.
+///
+/// The Export Directory Table contains a single "row" of data
+/// describing the rest of the export symbol information.
+struct PeExportDirectory
+{
+    uint32_t    export_flags;               /// Reserved, must be zero.
+    uint32_t    timestamp;                  /// Date and time the export data was created.
+    uint16_t    version_major;              /// Major version number.
+    uint16_t    version_minor;              /// Minor version number.
+    uint32_t    name_rva;                   /// RVA of the ASCII string containing the name of the DLL.
+    uint32_t    ordinal_base;               /// Starting ordinal number for exports in this image. Usually set to 1.
+    uint32_t    num_address_table_entries;  /// Number of entries in the Export Address Table.
+    uint32_t    num_name_pointers;          /// Number of entries in the Name Pointer Table, and in the ordinals table.
+    uint32_t    export_address_rva;         /// RVA of the Export Address Table.
+    uint32_t    name_pointer_rva;           /// RVA of the Export Name Pointer Table.
+    uint32_t    ordinal_table_rva;          /// RVA of the Export Ordinal Table.
+};
+
+
+#define EXELIB_NO_LOAD_FORWARDERS    // Keep this defined until I can track down an issue with forwarder strings.
+struct PeExportAddressTableEntry
+{
+    uint32_t    export_rva;     /// RVA of the exported symbol or to a forwarder string.
+    // The above is what's in the file.
+#if !defined(EXELIB_NO_LOAD_FORWARDERS)
+    bool        is_forwarder;
+    std::string forwarder_name; /// The forwarder name, extracted via \c export_rva.
+#endif
+};
+
+struct PeExports
+{
+    using AddressTable      = std::vector<PeExportAddressTableEntry>;
+    using NamePointerTable  = std::vector<uint32_t>;
+    using OrdinalTable      = std::vector<uint16_t>;
+    using NameTable         = std::vector<std::string>;
+
+    PeExportDirectory       directory;          /// Exports info including addresses of tables
+    std::string             name;               /// Name of the DLL, extracted via \c directory.name_rva.
+    AddressTable            address_table;      /// Collection of Address Table entries.
+
+#if !defined(EXELIB_NO_LOAD_FORWARDERS)
+    std::vector<uint32_t>   forward_indices;    /// Collection of indexes into the Address Table for forwarders
+#endif
+        //TODO: consider merging the next
+        //      three items into a single
+        //      collection!!!
+    NamePointerTable        name_pointer_table; /// Collection of RVAs into the Export Name Table
+    OrdinalTable            ordinal_table;      /// Collection of ordinals (indexes into the Address Table).
+    NameTable               name_table;         /// Collection of export names.
+};
+
 /// \brief  Describes an entry in the Import Lookup Table.
 struct PeImportLookupEntry
 {
-    uint32_t    ord_name_flag : 1;  /// If 1 the entry uses an ordinal number, otherwise an entry from the Hint/Name Table
-    union {
+    uint32_t    ord_name_flag : 1;  /// If 1, the entry uses an ordinal number, otherwise an entry from the Hint/Name Table
+    union
+    {
         uint32_t    ordinal  : 16;  /// The import's ordinal number, if ord_name_flag is 1
         uint32_t    name_rva : 31;  /// The RVA of the entry in the Hint/Name Table if ord_name_flag is 0
     };
@@ -350,6 +415,7 @@ public:
     using DataDirectory     = std::vector<PeDataDirectoryEntry>;
     using SectionTable      = std::vector<PeSection>;
     using ImportDirectory   = std::vector<PeImportDirectoryEntry>;
+
 
 
     /// \brief  Construct a \c PeExeInfo object from a stream.
@@ -395,34 +461,65 @@ public:
         return _optional_64.get();
     }
 
+    /// \brief  Return a reference to the Data Directory
     const DataDirectory &data_directory() const noexcept
     {
         return _data_directory;
     }
 
+    /// \brief  Return a reference to the Section Table
     const SectionTable &sections() const noexcept
     {
         return _sections;
     }
 
-    const ImportDirectory &imports() const noexcept
+    /// \brief  Return a reference to the Imports Directory
+    ///
+    /// The Imports data may not exist if the module doesn't import anything,
+    /// so the returned pointer may be null.
+    const ImportDirectory *imports() const noexcept
     {
-        return _imports;
+        return _imports.get();
+    }
+
+    /// \brief  Return \c true if the PE executable has imports, \c false otherwise.
+    bool has_imports() const noexcept
+    {
+        return _imports != nullptr;
+    }
+
+    /// \brief  Return a reference to the Exports data
+    ///
+    /// The Exports data may not exist if the module doesn't export anything,
+    /// so the returned pointer may be null.
+    const PeExports *exports() const noexcept
+    {
+        return _exports.get();
+    }
+
+    /// \brief  Return \c true if the PE executable has exports, \c false otherwise.
+    const bool has_exports() const noexcept
+    {
+        return _exports != nullptr;
     }
 
 private:
-    size_t                              _header_position;   // absolute position in the file of the PE header. useful for offset calculations.
-    PeImageFileHeader                   _image_file_header; // The PE image file header structure for this file.
-    std::unique_ptr<PeOptionalHeader32> _optional_32;       // Pointer to 32-bit Optional Header. Either this or the one below, never both.
-    std::unique_ptr<PeOptionalHeader64> _optional_64;       // Pointer to 64-bit Optional Header. Either this or the one above, never both.
-    DataDirectory                       _data_directory;    // The Data Directory
-    SectionTable                        _sections;          // The Sections info, headers and optionally raw data
-    ImportDirectory                     _imports;           // The Import Directory, including read import module names and function names.
+    size_t                              _header_position;   /// Absolute position in the file of the PE header. useful for offset calculations.
+    PeImageFileHeader                   _image_file_header; /// The PE image file header structure for this file.
+    std::unique_ptr<PeOptionalHeader32> _optional_32;       /// Pointer to 32-bit Optional Header. Either this or the one below, never both.
+    std::unique_ptr<PeOptionalHeader64> _optional_64;       /// Pointer to 64-bit Optional Header. Either this or the one above, never both.
+    DataDirectory                       _data_directory;    /// The Data Directory
+    SectionTable                        _sections;          /// The Sections info, headers and optionally raw data
+    std::unique_ptr<ImportDirectory>    _imports;           /// The Import Directory, including read import module names and function names.
+    std::unique_ptr<PeExports>          _exports;           /// The Export tables data
+
 
     void load_image_file_header(std::istream &stream);
     void load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header);
     void load_optional_header_32(std::istream &stream);
     void load_optional_header_64(std::istream &stream);
+    void load_exports(std::istream &stream);
+    void load_imports(std::istream &stream, bool using_64);
 };
 
 #endif  //_EXELIB_PEEXE_H_

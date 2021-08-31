@@ -494,8 +494,8 @@ void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options 
                 switch (entry.type)
                 {
                     case static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::CodeView):
-                    //case static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::VC_FEATURE):
-#if !defined(NO_DEBUG_MISC_TYPE)
+                    case static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::VC_Feature):
+#if !defined(EXELIB_NO_DEBUG_MISC_TYPE)
                     case static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::Misc):
 #endif
                     {

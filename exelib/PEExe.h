@@ -444,9 +444,9 @@ enum class PeDebugType : uint32_t
     Borland                 =  9,   // Reserved for Borland
     Reserved                = 10,   // Reserved
     CLSID                   = 11,   // Reserved
-    VC_FEATURE              = 12,   // Visual C++
+    VC_Feature              = 12,   // Visual C++
     POGO                    = 13,
-    ILTCG                   = 14,
+    ILTCG                   = 14,   // Link-Time Code Generation
     MPX                     = 15,
     Repro                   = 16,   // PE determinism or reproducibility
     ExDllCharacteristics    = 20    // Extended DLL characteristics bits
@@ -489,6 +489,17 @@ struct PeDebugMisc
 
     static constexpr uint32_t   DataTypeExeName = 1;
 };
+
+/// \brief  Describes a VC_FEATURE debug record
+struct PeDebugVcFeature
+{
+    uint32_t    pre_vc11;
+    uint32_t    cpp;
+    uint32_t    gs;
+    uint32_t    sdl;
+    uint32_t    guard_n;
+};
+
 /// \brief  Describes an entry the Debug Directory
 struct PeDebugDirectoryEntry
 {
@@ -574,8 +585,8 @@ struct PeDebugDirectoryEntry
 // The \c make_misc_struct function probably works but it has not been tested
 // since I haven't found any PE executables old enough to use the MISC debug
 // format. Remove this definition at your own risk.
-#define NO_DEBUG_MISC_TYPE
-#if !defined(NO_DEBUG_MISC_TYPE)
+#define EXELIB_NO_DEBUG_MISC_TYPE
+#if !defined(EXELIB_NO_DEBUG_MISC_TYPE)
     std::unique_ptr<PeDebugMisc> make_misc_struct() const
     {
         constexpr size_t misc_size{sizeof(PeDebugMisc::data_type) + sizeof(PeDebugMisc::length) + sizeof(PeDebugMisc::unicode) + sizeof(PeDebugMisc::reserved)};
@@ -600,6 +611,29 @@ struct PeDebugDirectoryEntry
         return nullptr;
     }
 #endif
+
+    std::unique_ptr<PeDebugVcFeature> make_vc_feature_struct() const
+    {
+        if (data_loaded && data.size() >= sizeof(uint32_t) * 5)
+        {
+            auto rv{std::make_unique<PeDebugVcFeature>()};
+            const auto *p{data.data()};
+
+            rv->pre_vc11= *(reinterpret_cast<const uint32_t *>(p));
+            p += sizeof(rv->pre_vc11);
+            rv->cpp = *(reinterpret_cast<const uint32_t *>(p));
+            p += sizeof(rv->cpp);
+            rv->gs = *(reinterpret_cast<const uint32_t *>(p));
+            p += sizeof(rv->gs);
+            rv->sdl = *(reinterpret_cast<const uint32_t *>(p));
+            p += sizeof(rv->sdl);
+            rv->guard_n = *(reinterpret_cast<const uint32_t *>(p));
+
+            return rv;
+        }
+
+        return nullptr;
+    }
 };
 
 /// \brief  Contains information about the new PE section of an executable file

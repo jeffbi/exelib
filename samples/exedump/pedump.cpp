@@ -470,7 +470,7 @@ const char *get_debug_type_name(uint32_t type)
             return "Reserved";
         case static_cast<ut>(PeDebugType::CLSID):
             return "CLSID";
-        case static_cast<ut>(PeDebugType::VC_FEATURE):
+        case static_cast<ut>(PeDebugType::VC_Feature):
             return "VC_FEATURE";
         case static_cast<ut>(PeDebugType::POGO):
             return "POGO";
@@ -518,7 +518,7 @@ void dump_debug_directory(const PeExeInfo::DebugDirectory &debug_directory, std:
                 }
             }
         }
-#if !defined(NO_DEBUG_MISC_TYPE)
+#if !defined(EXELIB_NO_DEBUG_MISC_TYPE)
         else if (entry.type == static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::Misc))
         {
             auto ptr = entry.make_misc_struct();
@@ -539,6 +539,23 @@ void dump_debug_directory(const PeExeInfo::DebugDirectory &debug_directory, std:
             }
         }
 #endif
+        else if (entry.type == static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::VC_Feature))
+        {
+            // Counts: Pre-VC++ 11.00=0, C/C++=28, /GS=28, /sdl=1, guardN=27
+            if (entry.data.size() >= sizeof(uint32_t) * 5)
+            {
+                auto ptr = entry.make_vc_feature_struct();
+
+                if (ptr)
+                {
+                    outstream << "    Counts: Pre-VC++ 11=" << ptr->pre_vc11
+                              << ", C/C++=" << ptr->cpp
+                              << ", /GS=" << ptr->gs
+                              << ", /sdl=" << ptr->sdl
+                              << ", guardN=" << ptr->guard_n << '\n';
+                }
+            }
+        }
         else if (entry.data_loaded)
         {
             outstream << "Raw debug data:\n" << HexDump{entry.data.data(), entry.data.size()} << '\n';

@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <iterator>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -17,6 +18,21 @@
 #include "HexVal.h"
 
 namespace {
+
+std::string guid_to_string(const Guid &guid)
+{
+    std::ostringstream  ss;
+    const auto p = &guid.data4[0];
+
+    ss << '{' << HexVal{guid.data1}
+       << '-' << HexVal{guid.data2}
+       << '-' << HexVal{guid.data3}
+       << '-' << HexVal{*(p + 0)} << HexVal{*(p + 1)}
+       << '-' << HexVal{*(p + 2)} << HexVal{*(p + 3)} << HexVal{*(p + 4)} << HexVal{*(p + 5)}
+       << '}';
+
+    return ss.str();
+}
 
 // Helper to format a timestamp (from the PE header) into a string for output.
 std::string format_timestamp(uint32_t timestamp)
@@ -334,6 +350,10 @@ void dump_exports_table(const PeExports &exports, std::ostream &outstream)
             if (it != exports.ordinal_table.end())
             {
                 outstream << "  " << exports.name_table[std::distance(exports.ordinal_table.begin(), it)];
+#if !defined(EXELIB_NO_LOAD_FORWARDERS)
+                if (exports.address_table[i].is_forwarder)
+                    outstream << " => " << exports.address_table[i].forwarder_name;
+#endif
             }
             outstream << '\n';
         }
@@ -352,7 +372,7 @@ void dump_imports_table(const PeExeInfo::ImportDirectory &imports, std::ostream 
                   << "        Time Stamp:                         0x" << HexVal{entry.timestamp} << ' ' << format_timestamp(entry.timestamp) << '\n'
                   << "        Index of first forwarder reference: " << std::setw(10) << entry.forwarder_chain << '\n'
                   << "        Number of imported functions:       " << std::setw(10) << entry.lookup_table.size() << '\n'
-                  << "            Ordinal or Hint  Name\n"
+                  << "            Hint or Ordinal  Name\n"
                   << "            ---------------  ----\n";
 
         for (const auto &lookup_entry : entry.lookup_table)
@@ -360,10 +380,8 @@ void dump_imports_table(const PeExeInfo::ImportDirectory &imports, std::ostream 
             outstream << "                ";
 
             if (lookup_entry.ord_name_flag)
-                //outstream << "Ordinal: 0x" << HexVal{lookup_entry.ordinal};
                 outstream << "0x" << HexVal(lookup_entry.ordinal);
             else
-                //outstream << "Hint: 0x" << HexVal{lookup_entry.hint} << "  Name: " << lookup_entry.name;
                 outstream << "0x" << HexVal{lookup_entry.hint} << "       " << lookup_entry.name;
 
             outstream << '\n';
@@ -420,6 +438,113 @@ std::vector<std::string> get_section_header_characteristic_strings(uint32_t char
             rv.push_back(pair.second);
 
     return rv;
+}
+
+const char *get_debug_type_name(uint32_t type)
+{
+    using ut = std::underlying_type<PeDebugType>::type;
+
+    switch (type)
+    {
+        case static_cast<ut>(PeDebugType::Unknown):
+            return "Unknown";
+        case static_cast<ut>(PeDebugType::COFF):
+            return "COFF";
+        case static_cast<ut>(PeDebugType::CodeView):
+            return "CodeView";
+        case static_cast<ut>(PeDebugType::FPO):
+            return "FPO";
+        case static_cast<ut>(PeDebugType::Misc):
+            return "Misc";
+        case static_cast<ut>(PeDebugType::Exception):
+            return "Exception";
+        case static_cast<ut>(PeDebugType::Fixup):
+            return "Fixup";
+        case static_cast<ut>(PeDebugType::OMapToSource):
+            return "OMapToSource";
+        case static_cast<ut>(PeDebugType::OMapFromSource):
+            return "OMapFromSource";
+        case static_cast<ut>(PeDebugType::Borland):
+            return "Borland";
+        case static_cast<ut>(PeDebugType::Reserved):
+            return "Reserved";
+        case static_cast<ut>(PeDebugType::CLSID):
+            return "CLSID";
+        case static_cast<ut>(PeDebugType::VC_FEATURE):
+            return "VC_FEATURE";
+        case static_cast<ut>(PeDebugType::POGO):
+            return "POGO";
+        case static_cast<ut>(PeDebugType::ILTCG):
+            return "ILTCG";
+        case static_cast<ut>(PeDebugType::MPX):
+            return "MPX";
+        case static_cast<ut>(PeDebugType::Repro):
+            return "Repro";
+        case static_cast<ut>(PeDebugType::ExDllCharacteristics):
+            return "ExDllCharacteristics";
+        default:
+            return "Unrecognized debug type";
+    }
+}
+void dump_debug_directory(const PeExeInfo::DebugDirectory &debug_directory, std::ostream &outstream)
+{
+    outstream << "Debug Directory\n-------------------------------------------\n";
+
+    for (const auto &entry : debug_directory)
+    {
+        outstream << "Characteristics:     0x" << HexVal{entry.characteristics} << '\n'
+                  << "Time Stamp:          0x" << HexVal{entry.timestamp} << ' ' << format_timestamp(entry.timestamp) << '\n'
+                  << "Version Major:            " << std::setw(5) << entry.version_major << '\n'
+                  << "Version Minor:            " << std::setw(5) << entry.version_minor << '\n'
+                  << "Type:                " << std::setw(10) << entry.type << ' ' << get_debug_type_name(entry.type) << '\n'
+                  << "Size of Data:        " << std::setw(10) << entry.size_of_data << '\n'
+                  << "Address of Raw Data: 0x" << HexVal{entry.address_of_raw_data} << '\n'
+                  << "Pointer to Raw Data: 0x" << HexVal{entry.pointer_to_raw_data} << '\n';
+        if (entry.type == static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::CodeView))
+        {
+            auto pcv = entry.make_cv_struct();
+
+            if (pcv)
+            {
+                if (pcv->cv_signature == entry.SignaturePDB20)
+                {
+                    auto ptr = static_cast<PeDebugCvPDB20 *>(pcv.get());
+                    outstream << "    Format: NB10, offset=" << ptr->offset << ", signature = " << ptr->signature << ", Age = " << ptr->age << ", " << ptr->pdb_filepath << '\n';
+                }
+                else if (pcv->cv_signature == entry.SignaturePDB70)
+                {
+                    auto ptr = static_cast<PeDebugCvPDB70 *>(pcv.get());
+                    outstream << "    Format: RSDS, signature=" << guid_to_string(ptr->signature) << ", Age=" << ptr->age << ", " << ptr->pdb_filepath << '\n';
+                }
+            }
+        }
+#if !defined(NO_DEBUG_MISC_TYPE)
+        else if (entry.type == static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::Misc))
+        {
+            auto ptr = entry.make_misc_struct();
+            if (ptr)
+            {
+                if (ptr->data_type == PeDebugMisc::DataTypeExeName)
+                {
+                    outstream << "    Data Type=" << ptr->data_type << ", Length=" << ptr->length << ", Unicode=" << (ptr->unicode ? "yes" : "no") << ", ";
+                    if (ptr->unicode)
+                    {
+                        outstream << "<UTF-16 Unicode name>\n";
+                    }
+                    else
+                    {
+                        outstream << reinterpret_cast<const char *>(ptr->data.data());
+                    }
+                }
+            }
+        }
+#endif
+        else if (entry.data_loaded)
+        {
+            outstream << "Raw debug data:\n" << HexDump{entry.data.data(), entry.data.size()} << '\n';
+        }
+        outstream << "----------\n";
+    }
 }
 
 template <typename T>
@@ -516,6 +641,12 @@ void dump_pe_info(const PeExeInfo &info, std::ostream &outstream)
     if (info.has_imports())
     {
         dump_imports_table(*info.imports(), outstream);
+        outstream << separator << std::endl;
+    }
+
+    if (!info.debug_directory().empty())
+    {
+        dump_debug_directory(info.debug_directory(), outstream);
         outstream << separator << std::endl;
     }
 

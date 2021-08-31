@@ -9,6 +9,7 @@
 #include <istream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "LoadOptions.h"
@@ -42,7 +43,7 @@ inline uint32_t get_file_offset(uint32_t rva, const PeSection &section)
 #if !defined(EXELIB_NO_LOAD_FORWARDERS)
 inline bool is_rva_within_section(uint32_t rva, const PeSection &section)
 {
-    return (rva >= section.virtual_address()) && (rva <= section.virtual_address() + section.raw_data_size());
+    return (rva >= section.virtual_address()) && (rva <= section.virtual_address() + section.size());
 }
 #endif
 
@@ -153,6 +154,9 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
         // Load Import Table
         load_imports(stream, using_64);
 
+        // Load Debug Directory
+        load_debug_directory(stream, options);
+
         //TODO: Load more here!!!
     }
     else
@@ -254,11 +258,8 @@ void PeExeInfo::load_optional_header_64(std::istream &stream)
 
 void PeExeInfo::load_exports(std::istream &stream)
 {
-    if (_data_directory.size() >= 1)
+    if (_data_directory.size() >= 1 && _data_directory[0].size > 0)
     {
-        if (_data_directory[0].size == 0)
-            return;
-
         auto    rva{_data_directory[0].virtual_address};
         auto    section{find_section_by_rva(rva, _sections)};
 
@@ -288,12 +289,6 @@ void PeExeInfo::load_exports(std::istream &stream)
 
             // Load the Export Address Table
 #if !defined(EXELIB_NO_LOAD_FORWARDERS)
-            // For the moment I'm not going to attempt to load the forwarder
-            // strings. I have found at least one DLL for which this code
-            // does not work. In that DLL, we're reading garbage (code, it
-            // actually looks like) at the specified location of the forwarder
-            // string. I'm still tracking this down. In the meantime the above
-            // preprocessor symbol should remain undefined.
             if (exports_directory.num_address_table_entries)
             {
                 stream.seekg(get_file_offset(exports_directory.export_address_rva, *section));
@@ -366,11 +361,8 @@ void PeExeInfo::load_exports(std::istream &stream)
 
 void PeExeInfo::load_imports(std::istream &stream, bool using_64)
 {
-    if (_data_directory.size() >= 2)
+    if (_data_directory.size() >= 2 && _data_directory[1].size > 0)
     {
-        if (_data_directory[1].size == 0)
-            return;
-
         auto    rva{_data_directory[1].virtual_address};
         auto    section{find_section_by_rva(rva, _sections)};
 
@@ -399,7 +391,6 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                     break;
 
                 _imports->push_back(entry);
-                int k=0;
             }
             // Load the DLL names
             for (auto &&entry : *_imports)
@@ -459,6 +450,83 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                 }
             }
             stream.seekg(here);
+        }
+    }
+}
+
+void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options options)
+{
+    if (_data_directory.size() >= 7 && _data_directory[6].size > 0)
+    {
+        auto    rva{_data_directory[6].virtual_address};
+        auto    section{find_section_by_rva(rva, _sections)};
+
+        if (section)
+        {
+            const size_t    directory_size{_data_directory[6].size};
+            size_t          bytes_read{0};
+
+            auto    pos{get_file_offset(rva, *section)};
+            auto    here{stream.tellg()};
+            stream.seekg(pos);
+
+            while (bytes_read < directory_size)
+            {
+                PeDebugDirectoryEntry   entry;
+                bytes_read += read(stream, &entry.characteristics);
+                bytes_read += read(stream, &entry.timestamp);
+                bytes_read += read(stream, &entry.version_major);
+                bytes_read += read(stream, &entry.version_minor);
+                bytes_read += read(stream, &entry.type);
+                bytes_read += read(stream, &entry.size_of_data);
+                bytes_read += read(stream, &entry.address_of_raw_data);
+                bytes_read += read(stream, &entry.pointer_to_raw_data);
+
+                entry.data_loaded = false;
+                _debug_directory.emplace_back(std::move(entry));
+            }
+
+            // Load debug data
+            for (auto &&entry : _debug_directory)
+            {
+                // There are few types that we know how to handle,
+                // so we'll load their data regardless of the options flags
+                switch (entry.type)
+                {
+                    case static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::CodeView):
+                    //case static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::VC_FEATURE):
+#if !defined(NO_DEBUG_MISC_TYPE)
+                    case static_cast<std::underlying_type<PeDebugType>::type>(PeDebugType::Misc):
+#endif
+                    {
+                        entry.data.resize(entry.size_of_data);
+                        stream.seekg(entry.pointer_to_raw_data);
+                        stream.read(reinterpret_cast<char *>(entry.data.data()), entry.data.size());
+                        entry.data_loaded = true;
+                        break;
+                    }
+
+                    default:
+                    {
+                        if (options & LoadOptions::LoadDebugData)
+                        {
+                            entry.data.resize(entry.size_of_data);
+                            stream.seekg(entry.pointer_to_raw_data);
+                            stream.read(reinterpret_cast<char *>(entry.data.data()), entry.data.size());
+                            entry.data_loaded = true;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            stream.seekg(here);
+        }
+        else
+        {
+            //TODO: It is possible for the Debug Directory to be outside the
+            //      boundaries of any Section. Not sure how to find the directory
+            //      in the file without a section to refer to.
         }
     }
 }

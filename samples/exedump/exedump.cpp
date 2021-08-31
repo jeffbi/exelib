@@ -112,7 +112,8 @@ void dump_exe(const char *path)
     if (fs.is_open())
     {
         std::cout << "Dump of " << path << '\n';
-        dump_exe_info(ExeInfo(fs, LoadOptions::LoadAllData));   // Here we're loading all the raw data so we can output it in hexdumps
+        //dump_exe_info(ExeInfo(fs, LoadOptions::LoadAllData));   // Here we're loading all the raw data so we can output it in hexdumps
+        dump_exe_info(ExeInfo(fs, LoadOptions::LoadDebugData));
     }
     else
     {

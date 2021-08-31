@@ -109,7 +109,7 @@ struct NeSegmentEntry
     };
 
     bool                    data_loaded {false};
-    std::vector<uint8_t>    bits;
+    std::vector<uint8_t>    data;
 };
 
 /// \brief  Entry in the Resource sub-table. Describes a single resource.

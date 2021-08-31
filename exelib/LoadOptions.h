@@ -17,6 +17,7 @@ public:
     static constexpr Options LoadSegmentData        = 0x0002;   // Load raw data from segments in NE files.
     static constexpr Options LoadSectionData        = 0x0004;   // Load raw data from sections in PE files.
     static constexpr Options LoadMzRelocationData   = 0x0008;   // Load Relocation Table from MZ files
+    static constexpr Options LoadDebugData          = 0x0010;   // Load the raw debug data. Some data will be loaded always.
     static constexpr Options LoadAllData            = 0x00FF;   // This value could change if more flags are added above.
 };
 

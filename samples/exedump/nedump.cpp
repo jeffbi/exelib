@@ -241,7 +241,7 @@ void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, st
                           << "  Flags: 0x" << HexVal{entry.flags};
                 print_segment_flags(entry.flags, outstream);
                 outstream << '\n';
-                outstream << "Segment Data:\n" <<HexDump{entry.bits.data(), entry.bits.size()} << '\n';
+                outstream << "Segment Data:\n" <<HexDump{entry.data.data(), entry.data.size()} << '\n';
             }
         }
         else

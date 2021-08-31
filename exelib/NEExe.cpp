@@ -29,10 +29,10 @@ void load_seg_table_entry(std::istream &stream, NeSegmentEntry &entry, uint16_t 
         if (entry.sector)   // zero means there is no sector data.
         {
             auto here = stream.tellg();
-            stream.seekg(static_cast<uint32_t>(entry.sector) << align_shift);
+            stream.seekg(static_cast<size_t>(entry.sector) << align_shift);
             size_t size = entry.length ? entry.length : 65536;
-            entry.bits.resize(size);
-            stream.read(reinterpret_cast<char *>(&entry.bits[0]), size);
+            entry.data.resize(size);
+            stream.read(reinterpret_cast<char *>(&entry.data[0]), size);
             stream.seekg(here);
         }
         entry.data_loaded = true;  // say we have data even if we didn't read anything.

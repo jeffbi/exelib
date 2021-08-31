@@ -12,11 +12,11 @@
 #include <istream>
 
 template<typename T>
-std::istream &read(std::istream &stream, T *destination)
+size_t read(std::istream &stream, T *destination)
 {
     stream.read(reinterpret_cast<char *>(destination), sizeof(T));
 
-    return stream;
+    return sizeof(T);
 }
 
 #endif  //_EXELIB_READSTREAM_H_

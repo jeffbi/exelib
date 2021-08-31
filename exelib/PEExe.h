@@ -9,7 +9,9 @@
 #define _EXELIB_PEEXE_H_
 
 #include <cstdint>
+#include <cstring>
 #include <iosfwd>
+#include <iterator>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -314,6 +316,13 @@ public:
         return _header.size_of_raw_data;
     }
 
+    /// \brief  Return the usable size of the section data, which is the
+    ///         smaller of \c virtual_size() or \c raw_data_size().
+    uint32_t size() const noexcept
+    {
+        return std::min(virtual_size(), raw_data_size());
+    }
+
 private:
     PeSectionHeader         _header;
     std::vector<uint8_t>    _data;
@@ -339,6 +348,21 @@ struct PeExportDirectory
     uint32_t    ordinal_table_rva;          /// RVA of the Export Ordinal Table.
 };
 
+
+// For the moment I'm not going to attempt to load the forwarder
+// strings. I have found at least one DLL for which this code
+// does not work. In that DLL, The alorithm for determining if
+// the export is a forward reference does not work properly.
+//
+// This may have something to do with the export tables in
+// this DLL being contained in the .text section. Microsoft's
+// documentation says that exported code or data is expected to
+// reside in a different section than the one that the export
+// table is in, but code, exported or not, generally also
+// resides in the .text section.
+//
+// I'm still tracking this down. In the meantime the preprocessor
+// symbol below should remain defined.
 
 #define EXELIB_NO_LOAD_FORWARDERS    // Keep this defined until I can track down an issue with forwarder strings.
 struct PeExportAddressTableEntry
@@ -406,6 +430,177 @@ struct PeImportDirectoryEntry
     LookupTable lookup_table;               /// Table of function names or ordinal numbers imported from this imported module.
 };
 
+enum class PeDebugType : uint32_t
+{
+    Unknown                 =  0,   // Unknown value ignored by all tools
+    COFF                    =  1,   // COFF debug information
+    CodeView                =  2,   // Visual C++ debug information
+    FPO                     =  3,   // Frame Pointer Omission information
+    Misc                    =  4,   // Location of the debug file
+    Exception               =  5,   // A copy of .pdata section
+    Fixup                   =  6,   // Reserved
+    OMapToSource            =  7,   // Mapping from an RVA in image to an RVA in source image
+    OMapFromSource          =  8,   // Mapping from an RVA in source image to an RVA in image
+    Borland                 =  9,   // Reserved for Borland
+    Reserved                = 10,   // Reserved
+    CLSID                   = 11,   // Reserved
+    VC_FEATURE              = 12,   // Visual C++
+    POGO                    = 13,
+    ILTCG                   = 14,
+    MPX                     = 15,
+    Repro                   = 16,   // PE determinism or reproducibility
+    ExDllCharacteristics    = 20    // Extended DLL characteristics bits
+};
+
+/// \brief  Represents a GUID
+struct Guid
+{
+    uint32_t    data1;
+    uint16_t    data2;
+    uint16_t    data3;
+    uint8_t     data4[8];
+};
+
+/// \brief  Base of two CodeView information structures.
+struct PeDebugCv
+{
+    uint32_t    cv_signature;
+    uint32_t    age;
+    std::string pdb_filepath;
+};
+struct PeDebugCvPDB20 : public PeDebugCv
+{
+    int32_t     offset;
+    uint32_t    signature;
+};
+struct PeDebugCvPDB70 : public PeDebugCv
+{
+    Guid        signature;
+};
+
+struct PeDebugMisc
+{
+    uint32_t    data_type;
+    uint32_t    length;
+    uint8_t     unicode;
+    uint8_t     reserved[3];
+
+    std::vector<uint8_t>    data;
+
+    static constexpr uint32_t   DataTypeExeName = 1;
+};
+/// \brief  Describes an entry the Debug Directory
+struct PeDebugDirectoryEntry
+{
+    uint32_t    characteristics;        // Reserved, must be zero
+    uint32_t    timestamp;              // Date and time when the debug data was created
+    uint16_t    version_major;          // Major version of debug data format
+    uint16_t    version_minor;          // Minor version of debug data format
+    uint32_t    type;                   // Format of dedbugging information
+    uint32_t    size_of_data;           // Size of debug data, excluding Debug Directory
+    uint32_t    address_of_raw_data;    // Address of debug data when loaded
+    uint32_t    pointer_to_raw_data;    // File location of raw data
+    // The above is what's in the file
+
+    bool                    data_loaded;    // Was the raw data loaded?
+    std::vector<uint8_t>    data;           // Any raw data that was loaded
+
+    static constexpr uint32_t  SignaturePDB70{0x53445352};
+    static constexpr uint32_t  SignaturePDB20{0x3031424E};
+
+    std::unique_ptr<PeDebugCv> make_cv_struct() const
+    {
+        constexpr size_t pdb20_size{sizeof(PeDebugCvPDB20::cv_signature) + sizeof(PeDebugCvPDB20::age) + sizeof(PeDebugCvPDB20::offset) + sizeof(PeDebugCvPDB20::signature) + 1};
+        if (data_loaded && data.size() >= pdb20_size)
+        {
+            const auto *p{data.data()};
+            uint32_t    sig = *(reinterpret_cast<const uint32_t *>(p));
+            p += sizeof(uint32_t);
+
+            if (sig == SignaturePDB70)
+            {
+                constexpr size_t pdb70_size{sizeof(PeDebugCvPDB70::cv_signature) +
+                                            sizeof(PeDebugCvPDB70::age) +
+                                            sizeof(PeDebugCvPDB70::signature.data1) +
+                                            sizeof(PeDebugCvPDB70::signature.data2) +
+                                            sizeof(PeDebugCvPDB70::signature.data3) +
+                                            sizeof(PeDebugCvPDB70::signature.data4) +
+                                            1};
+                if (data.size() >= pdb70_size)
+                {
+                    auto rv{std::make_unique<PeDebugCvPDB70>()};
+
+                    rv->cv_signature = sig;
+
+                    // read the GUID
+                    rv->signature.data1 = *(reinterpret_cast<const uint32_t *>(p));
+                    p += sizeof(uint32_t);
+                    rv->signature.data2 = *(reinterpret_cast<const uint16_t *>(p));
+                    p += sizeof(uint16_t);
+                    rv->signature.data3 = *(reinterpret_cast<const uint16_t *>(p));
+                    p += sizeof(uint16_t);
+                    std::memcpy(rv->signature.data4, p, sizeof(rv->signature.data4));
+                    p += sizeof(rv->signature.data4);
+
+                    rv->age = *(reinterpret_cast<const uint32_t *>(p));
+                    p += sizeof(uint32_t);
+
+                    rv->pdb_filepath = reinterpret_cast<const char *>(p);
+                    return rv;
+                }
+            }
+            else if (sig == SignaturePDB20)
+            {
+                auto rv{std::make_unique<PeDebugCvPDB20>()};
+
+                rv->cv_signature = sig;
+
+                rv->offset = *(reinterpret_cast<const int32_t *>(p));
+                p += sizeof(int32_t);
+                rv->signature = *(reinterpret_cast<const uint32_t *>(p));
+                p += sizeof(uint32_t);
+                rv->age = *(reinterpret_cast<const uint32_t *>(p));
+                p += sizeof(uint32_t);
+
+                rv->pdb_filepath = reinterpret_cast<const char *>(p);
+
+                return rv;
+            }
+        }
+
+        return nullptr;
+    }
+
+// The \c make_misc_struct function probably works but it has not been tested
+// since I haven't found any PE executables old enough to use the MISC debug
+// format. Remove this definition at your own risk.
+#define NO_DEBUG_MISC_TYPE
+#if !defined(NO_DEBUG_MISC_TYPE)
+    std::unique_ptr<PeDebugMisc> make_misc_struct() const
+    {
+        constexpr size_t misc_size{sizeof(PeDebugMisc::data_type) + sizeof(PeDebugMisc::length) + sizeof(PeDebugMisc::unicode) + sizeof(PeDebugMisc::reserved)};
+        if (data_loaded && data.size() >= misc_size)
+        {
+            auto rv{std::make_unique<PeDebugMisc>()};
+            const auto *p{data.data()};
+
+            rv->data_type = *(reinterpret_cast<const uint32_t *>(p));
+            p += sizeof(rv->data_type);
+            rv->length = *(reinterpret_cast<const uint32_t *>(p));
+            p += sizeof(rv->length);
+            rv->unicode = *p++;
+            std::memcpy(&rv->reserved[0], p, sizeof(rv->reserved));
+            p += sizeof(rv->reserved);
+            auto start = data.begin() + (data.size() - (p - data.data()));
+            rv->data.assign(start, data.end());
+
+            return rv;
+        }
+
+        return nullptr;
+    }
+#endif
+};
 
 /// \brief  Contains information about the new PE section of an executable file
 class PeExeInfo
@@ -415,7 +610,7 @@ public:
     using DataDirectory     = std::vector<PeDataDirectoryEntry>;
     using SectionTable      = std::vector<PeSection>;
     using ImportDirectory   = std::vector<PeImportDirectoryEntry>;
-
+    using DebugDirectory    = std::vector<PeDebugDirectoryEntry>;
 
 
     /// \brief  Construct a \c PeExeInfo object from a stream.
@@ -503,6 +698,11 @@ public:
         return _exports != nullptr;
     }
 
+    /// \brief  Return a reference to the Debug Directory
+    const DebugDirectory debug_directory() const noexcept
+    {
+        return _debug_directory;
+    }
 private:
     size_t                              _header_position;   /// Absolute position in the file of the PE header. useful for offset calculations.
     PeImageFileHeader                   _image_file_header; /// The PE image file header structure for this file.
@@ -512,6 +712,7 @@ private:
     SectionTable                        _sections;          /// The Sections info, headers and optionally raw data
     std::unique_ptr<ImportDirectory>    _imports;           /// The Import Directory, including read import module names and function names.
     std::unique_ptr<PeExports>          _exports;           /// The Export tables data
+    DebugDirectory                      _debug_directory;   /// The Debug Directory
 
 
     void load_image_file_header(std::istream &stream);
@@ -520,6 +721,7 @@ private:
     void load_optional_header_64(std::istream &stream);
     void load_exports(std::istream &stream);
     void load_imports(std::istream &stream, bool using_64);
+    void load_debug_directory(std::istream &stream, LoadOptions::Options options);
 };
 
 #endif  //_EXELIB_PEEXE_H_

@@ -28,7 +28,7 @@ std::string guid_to_string(const Guid &guid)
        << '-' << HexVal{guid.data2}
        << '-' << HexVal{guid.data3}
        << '-' << HexVal{*(p + 0)} << HexVal{*(p + 1)}
-       << '-' << HexVal{*(p + 2)} << HexVal{*(p + 3)} << HexVal{*(p + 4)} << HexVal{*(p + 5)}
+       << '-' << HexVal{*(p + 2)} << HexVal{*(p + 3)} << HexVal{*(p + 4)} << HexVal{*(p + 5)} << HexVal{*(p + 6)} << HexVal{*(p + 7)}
        << '}';
 
     return ss.str();

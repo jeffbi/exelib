@@ -54,42 +54,6 @@ uint32_t get_blob_length(const std::vector<uint8_t> &bytes, size_t &bytes_read)
     return len;
 }
 
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint64_t &value)
-{
-    value = (static_cast<uint64_t>(vec[location++]))
-          | (static_cast<uint64_t>(vec[location++]) <<  8)
-          | (static_cast<uint64_t>(vec[location++]) << 16)
-          | (static_cast<uint64_t>(vec[location++]) << 24)
-          | (static_cast<uint64_t>(vec[location++]) << 32)
-          | (static_cast<uint64_t>(vec[location++]) << 40)
-          | (static_cast<uint64_t>(vec[location++]) << 48)
-          | (static_cast<uint64_t>(vec[location])   << 56);
-
-    return sizeof(value);
-}
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint32_t &value)
-{
-    value = (static_cast<uint32_t>(vec[location++]))
-          | (static_cast<uint32_t>(vec[location++]) <<  8)
-          | (static_cast<uint32_t>(vec[location++]) << 16)
-          | (static_cast<uint32_t>(vec[location])   << 24);
-
-    return sizeof(value);
-}
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint16_t &value)
-{
-    value = (static_cast<uint16_t>(vec[location++]))
-          | (static_cast<uint16_t>(vec[location]) <<  8);
-
-    return sizeof(value);
-}
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint8_t &value)
-{
-    value = vec[location];
-
-    return sizeof(value);
-}
-
 template<typename T>
 inline int count_set_bits(T value)
 {
@@ -110,61 +74,44 @@ inline bool is_bit_set(T value, int bit_number)
 
 }   // end of anonymous namespace
 
-void PeCliMetadata::load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options)
+
+void PeCliMetadata::load(std::istream &stream, LoadOptions::Options options)
 {
-    read(stream, _cli_header.size);
-    read(stream, _cli_header.major_runtime_version);
-    read(stream, _cli_header.minor_runtime_version);
-    read_data_directory_entry(stream, _cli_header.metadata);
-    read(stream, _cli_header.flags);
-    read(stream, _cli_header.entry_point_token);   // This is a member of a union. flags will tell us which actual member to use.
-    read_data_directory_entry(stream, _cli_header.resources);
-    read_data_directory_entry(stream, _cli_header.strong_name_signature);
-    read_data_directory_entry(stream, _cli_header.code_manager_table);
-    read_data_directory_entry(stream, _cli_header.vtable_fixups);
-    read_data_directory_entry(stream, _cli_header.export_address_table_jumps);
-    read_data_directory_entry(stream, _cli_header.managed_native_header);
+    auto    metadata_header_pos{stream.tellg()};
 
-    auto    rva{_cli_header.metadata.virtual_address};
-    auto    section{find_section_by_rva(rva, sections)};
+    _metadata_header = std::make_unique<PeCliMetadataHeader>();
+    read(stream, _metadata_header->signature);
+    read(stream, _metadata_header->major_version);
+    read(stream, _metadata_header->minor_version);
+    read(stream, _metadata_header->reserved);
+    _metadata_header->version = read_length_and_string(stream);
+    read(stream, _metadata_header->flags);
+    read(stream, _metadata_header->stream_count);
 
-    if (section)
+    // Load the metadata stream information
+    _stream_headers.reserve(_metadata_header->stream_count);
+    for (uint16_t i = 0; i < _metadata_header->stream_count; ++i)
     {
-        auto    pos{get_file_offset(rva, *section)};
-        stream.seekg(pos);
+        PeCliStreamHeader   header;
 
-        auto    metadata_header_pos{pos};
-        _metadata_header = std::make_unique<PeCliMetadataHeader>();
-        read(stream, _metadata_header->signature);
-        read(stream, _metadata_header->major_version);
-        read(stream, _metadata_header->minor_version);
-        read(stream, _metadata_header->reserved);
-        _metadata_header->version = read_length_and_string(stream);
-        read(stream, _metadata_header->flags);
-        read(stream, _metadata_header->stream_count);
+        read(stream, header.offset);
+        read(stream, header.size);
+        header.name = read_sz_string(stream, 4);    // stream names are zero-padded to 4 byte multiples
 
-        // Load the metadata stream information
-        _stream_headers.reserve(_metadata_header->stream_count);
-        for (uint16_t i = 0; i < _metadata_header->stream_count; ++i)
-        {
-            PeCliStreamHeader   header;
+        _stream_headers.push_back(header);
+    }
 
-            read(stream, header.offset);
-            read(stream, header.size);
-            header.name = read_sz_string(stream, 4);    // stream names are zero-padded to 4 byte multiples
-
-            _stream_headers.push_back(header);
-        }
-
+    if (options | LoadOptions::LoadCliMetadataStreams)
+    {
         // Load the metadata streams.
-        // There are member functions to interpret the #Strings, #US, and #GUID streams.
-        // Work on the #~ stream is under way.
+        // There are member functions to interpret the #Strings, #US, #GUID, and #~ streams.
         _streams.reserve(_metadata_header->stream_count);
         for (uint16_t i = 0; i < _metadata_header->stream_count; ++i)
         {
             std::vector<uint8_t>    stream_bytes(_stream_headers[i].size);
 
-            stream.seekg(metadata_header_pos + _stream_headers[i].offset);
+            //stream.seekg(metadata_header_pos + _stream_headers[i].offset);
+            stream.seekg(metadata_header_pos + static_cast<std::streamoff>(_stream_headers[i].offset));
             stream.read(reinterpret_cast<char *>(&stream_bytes[0]), _stream_headers[i].size);
 
             _streams.push_back(std::move(stream_bytes));
@@ -174,6 +121,7 @@ void PeCliMetadata::load(std::istream &stream, const std::vector<PeSection> &sec
             load_metadata_tables();
     }
 }
+
 
 std::vector<std::string> PeCliMetadata::get_strings_heap_strings() const
 {
@@ -1095,4 +1043,36 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 throw std::runtime_error("Unknown CLI metadata table type");
         };
     }
+}
+
+void PeCli::load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options)
+{
+    read(stream, _cli_header.size);
+    read(stream, _cli_header.major_runtime_version);
+    read(stream, _cli_header.minor_runtime_version);
+    read_data_directory_entry(stream, _cli_header.metadata);
+    read(stream, _cli_header.flags);
+    read(stream, _cli_header.entry_point_token);   // This is a member of a union. flags will tell us which actual member to use.
+    read_data_directory_entry(stream, _cli_header.resources);
+    read_data_directory_entry(stream, _cli_header.strong_name_signature);
+    read_data_directory_entry(stream, _cli_header.code_manager_table);
+    read_data_directory_entry(stream, _cli_header.vtable_fixups);
+    read_data_directory_entry(stream, _cli_header.export_address_table_jumps);
+    read_data_directory_entry(stream, _cli_header.managed_native_header);
+
+    if (options | LoadOptions::LoadCliMetadata)
+    {
+        auto    rva{_cli_header.metadata.virtual_address};
+        auto    section{find_section_by_rva(rva, sections)};
+
+        if (section)
+        {
+            auto    pos{get_file_offset(rva, *section)};
+            stream.seekg(pos);
+
+            _metadata = std::make_unique<PeCliMetadata>();
+            _metadata->load(stream, options);
+        }
+    }
+    //TODO: Load the other CLI information!!!
 }

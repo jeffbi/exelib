@@ -228,7 +228,7 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
         load_debug_directory(stream, options);
 
         // load CLI metadata information, if any
-        load_cli_metadata(stream, options);
+        load_cli(stream, options);
 
         load_resource_info(stream, options);
         //TODO: Load more here!!!
@@ -670,8 +670,7 @@ void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options 
     }
 }
 
-
-void PeExeInfo::load_cli_metadata(std::istream &stream, LoadOptions::Options options)
+void PeExeInfo::load_cli(std::istream &stream, LoadOptions::Options options)
 {
     constexpr int   dir_index = DataDirectoryIndex::CliHeader;
 
@@ -683,13 +682,14 @@ void PeExeInfo::load_cli_metadata(std::istream &stream, LoadOptions::Options opt
 
         if (section)
         {
-            // Load the CLI header
+            // Load the CLI info, including the header
             auto    pos{get_file_offset(rva, *section)};
             auto    here{stream.tellg()};
             stream.seekg(pos);
 
-            _cli_metadata = std::make_unique<PeCliMetadata>();
-            _cli_metadata->load(stream, _sections, options);
+            _cli = std::make_unique<PeCli>();
+            _cli->load(stream, _sections, options);
+
             stream.seekg(here);
         }
     }

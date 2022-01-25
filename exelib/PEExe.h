@@ -725,8 +725,8 @@ struct PeCliHeader
     PeDataDirectoryEntry    metadata;
     uint32_t                flags;
 
-    // If NativeEntryPoint is not set, entry_point_token represents a managed entrypoint.
-    // If NativeEntryPoint is set, entry_point_RVA represents an RVA to a native entrypoint.
+    // If PeCliEntryPointFlags::NativeEntryPoint is not set, entry_point_token represents a managed entrypoint.
+    // If PeCliEntryPointFlags::NativeEntryPoint is set, entry_point_RVA represents an RVA to a native entrypoint.
     union
     {
         uint32_t            entry_point_token;
@@ -1255,7 +1255,8 @@ public:
     PeCliMetadata()
     {}
 
-    void load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options);
+    //void load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options);
+    void load(std::istream &stream, LoadOptions::Options options);
 
     const PeCliHeader &cli_header() const noexcept
     {
@@ -1318,6 +1319,30 @@ private:
     std::vector<PeCliStreamHeader>          _stream_headers;
     std::vector<std::vector<uint8_t>>       _streams;   // all metadata streams
     std::unique_ptr<PeCliMetadataTables>    _tables;    // from the #~ stream
+};
+
+/// \brief Represents the CLI portion, if any, of the PE executable.
+class PeCli
+{
+public:
+    PeCli() = default;
+    PeCli(const PeCli &) = delete;              ///< The copy constructor is deleted
+    PeCli(PeCli &&) = delete;                   ///< The copy constructor is deleted
+    PeCli &operator=(const PeCli &) = delete;   ///< The copy assignment operator is deleted
+    PeCli &operator=(PeCli &) = delete;         ///< The move assignment operator is deleted
+
+    void load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options);
+
+    /// \brief  Get a pointer to the CLI metadata, if any.
+    ///         This function returns the null pointer if no metadata was loaded.
+    const PeCliMetadata *metadata()
+    {
+        return _metadata.get();
+    }
+
+private:
+    PeCliHeader                     _cli_header;    // The CLI header
+    std::unique_ptr<PeCliMetadata>  _metadata;      // The CLI metadata, if loaded;
 };
 
 //////////////////////////////////
@@ -1389,7 +1414,7 @@ public:
         return _sections;
     }
 
-    /// \brief  Return a reference to the Imports Directory
+    /// \brief  Return a pointer to the Imports Directory
     ///
     /// The Imports data may not exist if the module doesn't import anything,
     /// so the returned pointer may be null.
@@ -1404,7 +1429,7 @@ public:
         return _imports != nullptr;
     }
 
-    /// \brief  Return a reference to the Exports data
+    /// \brief  Return a pointer to the Exports data
     ///
     /// The Exports data may not exist if the module doesn't export anything,
     /// so the returned pointer may be null.
@@ -1419,10 +1444,25 @@ public:
         return _exports != nullptr;
     }
 
+    /// \brief  Return a pointer to the CLI information.
+    ///
+    /// The CLI information may not exist if the module is not managed code,
+    /// or if the information was not loaded, in which case the returned pointer will be null.
+    const PeCli *cli() const noexcept
+    {
+        return _cli.get();
+    }
+
+    /// \brief  Return \c true if the PE executable contains CLI information, \c false otherwise.
+    bool has_cli() const noexcept
+    {
+        return _cli != nullptr;
+    }
+
     /// \brief  Return \c true if the PE executable has CLI metadata, \c false otherwise.
     bool has_cli_metadata() const noexcept
     {
-        return _cli_metadata != nullptr;
+        return has_cli() && _cli->metadata() != nullptr;
     }
 
     /// \brief  Return a reference to the Debug Directory
@@ -1432,16 +1472,17 @@ public:
     }
 
 private:
-    size_t                                  _header_position;   /// Absolute position in the file of the PE header. useful for offset calculations.
-    PeImageFileHeader                       _image_file_header; /// The PE image file header structure for this file.
-    std::unique_ptr<PeOptionalHeader32>     _optional_32;       /// Pointer to 32-bit Optional Header. Either this or the one below, never both.
-    std::unique_ptr<PeOptionalHeader64>     _optional_64;       /// Pointer to 64-bit Optional Header. Either this or the one above, never both.
-    DataDirectory                           _data_directory;    /// The Data Directory
-    SectionTable                            _sections;          /// The Sections info, headers and optionally raw data
-    std::unique_ptr<ImportDirectory>        _imports;           /// The Import Directory, including read import module names and function names.
-    std::unique_ptr<PeExports>              _exports;           /// The Export tables data
-    DebugDirectory                          _debug_directory;   /// The Debug Directory
-    std::unique_ptr<PeCliMetadata>          _cli_metadata;      /// The CLI metadata, if the PE image is managed code
+    size_t                                  _header_position;   // Absolute position in the file of the PE header. useful for offset calculations.
+    PeImageFileHeader                       _image_file_header; // The PE image file header structure for this file.
+    std::unique_ptr<PeOptionalHeader32>     _optional_32;       // Pointer to 32-bit Optional Header. Either this or the one below, never both.
+    std::unique_ptr<PeOptionalHeader64>     _optional_64;       // Pointer to 64-bit Optional Header. Either this or the one above, never both.
+    DataDirectory                           _data_directory;    // The Data Directory
+    SectionTable                            _sections;          // The Sections info, headers and optionally raw data
+    std::unique_ptr<ImportDirectory>        _imports;           // The Import Directory, including read import module names and function names.
+    std::unique_ptr<PeExports>              _exports;           // The Export tables data
+    DebugDirectory                          _debug_directory;   // The Debug Directory
+    std::unique_ptr<PeCli>                  _cli;               // CLI information if the PE image is managed code.
+
 
 
     void load_image_file_header(std::istream &stream);
@@ -1451,8 +1492,7 @@ private:
     void load_exports(std::istream &stream);
     void load_imports(std::istream &stream, bool using_64);
     void load_debug_directory(std::istream &stream, LoadOptions::Options options);
-    void load_cli_directory(std::istream &stream, LoadOptions::Options options);
-    void load_cli_metadata(std::istream &stream, LoadOptions::Options options);
+    void load_cli(std::istream &stream, LoadOptions::Options options);
     void load_resource_info(std::istream &stream, LoadOptions::Options options);
 };
 

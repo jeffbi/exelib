@@ -1,6 +1,6 @@
 /// \file   MZExe.cpp
 /// Implementation of MzExeInfo.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
@@ -17,30 +17,30 @@
 /// \param stream   Input stream from which to read.
 void MzExeInfo::load_header(std::istream &stream)
 {
-    read(stream, &_header.signature);
+    read(stream, _header.signature);
     if (_header.signature != MzExeHeader::mz_signature)
         throw std::runtime_error("not a MZ executable file.");
 
-    read(stream, &_header.bytes_on_last_page);
-    read(stream, &_header.num_pages);
-    read(stream, &_header.num_relocation_items);
-    read(stream, &_header.header_size);
-    read(stream, &_header.min_allocation);
-    read(stream, &_header.requested_allocation);
-    read(stream, &_header.initial_SS);
-    read(stream, &_header.initial_SP);
-    read(stream, &_header.checksum);
-    read(stream, &_header.initial_IP);
-    read(stream, &_header.initial_CS);
-    read(stream, &_header.relocation_table_pos);
-    read(stream, &_header.overlay);
+    read(stream, _header.bytes_on_last_page);
+    read(stream, _header.num_pages);
+    read(stream, _header.num_relocation_items);
+    read(stream, _header.header_size);
+    read(stream, _header.min_allocation);
+    read(stream, _header.requested_allocation);
+    read(stream, _header.initial_SS);
+    read(stream, _header.initial_SP);
+    read(stream, _header.checksum);
+    read(stream, _header.initial_IP);
+    read(stream, _header.initial_CS);
+    read(stream, _header.relocation_table_pos);
+    read(stream, _header.overlay);
     if (_header.relocation_table_pos == 0x40)
     {
-        read(stream, &_header.reserved1);
-        read(stream, &_header.oem_ID);
-        read(stream, &_header.oem_info);
-        read(stream, &_header.reserved2);
-        read(stream, &_header.new_header_offset);
+        read(stream, _header.reserved1);
+        read(stream, _header.oem_ID);
+        read(stream, _header.oem_info);
+        read(stream, _header.reserved2);
+        read(stream, _header.new_header_offset);
     }
     else    // This is an OLD exe file. Nothing after the old exe header is useful.
     {
@@ -67,8 +67,8 @@ void MzExeInfo::load_relocation_table(std::istream &stream, uint16_t location, u
         {
             MzRelocPointer  reloc;
 
-            read(stream, &reloc.offset);
-            read(stream, &reloc.segment);
+            read(stream, reloc.offset);
+            read(stream, reloc.segment);
 
             _relocation_table[i] = reloc;
         }

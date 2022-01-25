@@ -45,6 +45,10 @@ and there will be only zero or one extended section in the file.
 The library contains documentation comments so you can run `doxygen` on the
 sources to generate documentation.
 
+> Note: EXE/PE executables store their values in little-endian, as used on
+> Intel processors among others. The code in this library is written for
+> little-endian processors and does not automatically convert to big-endian.
+
 ## State of the Library
 The library is currently able to load information from old MZ and from NE-style
 executables. It is also able to load the fist header data from PE Portable

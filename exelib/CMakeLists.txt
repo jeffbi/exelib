@@ -6,6 +6,7 @@ target_sources(exelib
         MZExe.cpp
         NEExe.cpp
         PEExe.cpp
+        CLI.cpp
         readstream.h
         resource_type.h
     PUBLIC

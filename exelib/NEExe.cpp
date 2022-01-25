@@ -1,6 +1,6 @@
 /// \file   NEExe.cpp
 /// Implementation of NzExeInfo.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
@@ -19,10 +19,10 @@ namespace {
 
 void load_seg_table_entry(std::istream &stream, NeSegmentEntry &entry, uint16_t align_shift, bool include_segment_data)
 {
-    read(stream, &entry.sector);
-    read(stream, &entry.length);
-    read(stream, &entry.flags);
-    read(stream, &entry.min_alloc);
+    read(stream, entry.sector);
+    read(stream, entry.length);
+    read(stream, entry.flags);
+    read(stream, entry.min_alloc);
 
     if (include_segment_data)
     {
@@ -87,41 +87,41 @@ std::string make_resource_type_name(uint16_t type)
 
 void NeExeInfo::load_header(std::istream &stream)
 {
-    read(stream, &_header.signature);
+    read(stream, _header.signature);
     if (_header.signature != NeExeHeader::ne_signature)
         throw std::runtime_error("not an NE executable file.");
 
-    read(stream, &_header.linker_version);
-    read(stream, &_header.linker_revision);
-    read(stream, &_header.entry_table_offset);
-    read(stream, &_header.entry_table_size);
-    read(stream, &_header.checksum);
-    read(stream, &_header.flags);
-    read(stream, &_header.auto_data_segment);
-    read(stream, &_header.inital_heap);
-    read(stream, &_header.initial_stack);
-    read(stream, &_header.initial_IP);
-    read(stream, &_header.initial_CS);
-    read(stream, &_header.initial_SP);
-    read(stream, &_header.initial_SS);
-    read(stream, &_header.num_segment_entries);
-    read(stream, &_header.num_module_entries);
-    read(stream, &_header.non_res_name_table_size);
-    read(stream, &_header.segment_table_offset);
-    read(stream, &_header.resource_table_offset);
-    read(stream, &_header.res_name_table_offset);
-    read(stream, &_header.module_table_offset);
-    read(stream, &_header.import_table_offset);
-    read(stream, &_header.non_res_name_table_pos);
-    read(stream, &_header.num_movable_entries);
-    read(stream, &_header.alignment_shift_count);
-    read(stream, &_header.num_resource_entries);
-    read(stream, &_header.executable_type);
-    read(stream, &_header.additional_flags);
-    read(stream, &_header.gangload_offset);
-    read(stream, &_header.gangload_size);
-    read(stream, &_header.min_code_swap_size);
-    read(stream, &_header.expected_win_version);
+    read(stream, _header.linker_version);
+    read(stream, _header.linker_revision);
+    read(stream, _header.entry_table_offset);
+    read(stream, _header.entry_table_size);
+    read(stream, _header.checksum);
+    read(stream, _header.flags);
+    read(stream, _header.auto_data_segment);
+    read(stream, _header.inital_heap);
+    read(stream, _header.initial_stack);
+    read(stream, _header.initial_IP);
+    read(stream, _header.initial_CS);
+    read(stream, _header.initial_SP);
+    read(stream, _header.initial_SS);
+    read(stream, _header.num_segment_entries);
+    read(stream, _header.num_module_entries);
+    read(stream, _header.non_res_name_table_size);
+    read(stream, _header.segment_table_offset);
+    read(stream, _header.resource_table_offset);
+    read(stream, _header.res_name_table_offset);
+    read(stream, _header.module_table_offset);
+    read(stream, _header.import_table_offset);
+    read(stream, _header.non_res_name_table_pos);
+    read(stream, _header.num_movable_entries);
+    read(stream, _header.alignment_shift_count);
+    read(stream, _header.num_resource_entries);
+    read(stream, _header.executable_type);
+    read(stream, _header.additional_flags);
+    read(stream, _header.gangload_offset);
+    read(stream, _header.gangload_size);
+    read(stream, _header.min_code_swap_size);
+    read(stream, _header.expected_win_version);
 }
 
 void NeExeInfo::load_entry_table(std::istream &stream)
@@ -161,7 +161,7 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
         auto    table_location = header_position() + header().resource_table_offset;
 
         stream.seekg(table_location);
-        read(stream, &_res_shift_count);    // read shift count
+        read(stream, _res_shift_count);    // read shift count
 
         _resource_table.clear();
         // read each resource
@@ -169,21 +169,21 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
         {
             // read the resource type
             NeResourceEntry  entry;
-            read(stream, &entry.type);
+            read(stream, entry.type);
             if (entry.type == 0) // marks last resource entry
                 break;
-            read(stream, &entry.count);
-            read(stream, &entry.reserved);
+            read(stream, entry.count);
+            read(stream, entry.reserved);
 
             // read the information for each resource of this type
             for (uint8_t i=0; i < entry.count; ++i)
             {
                 NeResource  resource;
-                read(stream, &resource.offset);
-                read(stream, &resource.length);
-                read(stream, &resource.flags);
-                read(stream, &resource.id);
-                read(stream, &resource.reserved);
+                read(stream, resource.offset);
+                read(stream, resource.length);
+                read(stream, resource.flags);
+                read(stream, resource.id);
+                read(stream, resource.reserved);
                 entry.resources.push_back(resource);
             }
 
@@ -204,7 +204,7 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
             {
                 // here, the type is an offset to the resource name, relative to the start of resource table.
                 stream.seekg(table_location + entry.type);
-                read(stream, &string_size);
+                read(stream, string_size);
                 stream.read(name_buffer, string_size);
                 entry.type_name.append(name_buffer, string_size);
             }
@@ -219,7 +219,7 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
                 else    // This is a named resource
                 {
                     stream.seekg(table_location + resource.id);
-                    read(stream, &string_size);
+                    read(stream, string_size);
                     stream.read(name_buffer, string_size);
                     resource.name.append(name_buffer, string_size);
                 }
@@ -254,17 +254,17 @@ void NeExeInfo::load_resident_name_table(std::istream &stream)
     char    name_buffer[256];
 
     stream.seekg(table_location);
-    read(stream, &string_size);
+    read(stream, string_size);
 
     while (string_size)
     {
         stream.read(name_buffer, string_size);
         NeName name;
         name.name.append(name_buffer, string_size);
-        read(stream, &name.ordinal);
+        read(stream, name.ordinal);
         _resident_names.push_back(name);
 
-        read(stream, &string_size);
+        read(stream, string_size);
     }
 }
 
@@ -275,17 +275,17 @@ void NeExeInfo::load_nonresident_name_table(std::istream &stream)
     char    name_buffer[256];
 
     stream.seekg(table_location);
-    read(stream, &string_size);
+    read(stream, string_size);
 
     while (string_size)
     {
         stream.read(name_buffer, string_size);
         NeName name;
         name.name.append(name_buffer, string_size);
-        read(stream, &name.ordinal);
+        read(stream, name.ordinal);
         _nonresident_names.push_back(name);
 
-        read(stream, &string_size);
+        read(stream, string_size);
     }
 }
 
@@ -301,7 +301,7 @@ void NeExeInfo::load_imported_name_table(std::istream &stream)
     while (pos < table_size)
     {
         uint8_t string_size;
-        read(stream, &string_size);
+        read(stream, string_size);
         ++pos;
         if (string_size)
         {
@@ -334,7 +334,7 @@ void NeExeInfo::load_module_name_table(std::istream &stream)
         for (uint16_t offset : mod_offsets)
         {
             stream.seekg(table_location + offset);
-            read(stream, &string_size);
+            read(stream, string_size);
             stream.read(name_buffer, string_size);
             _module_names.emplace_back(name_buffer, string_size);
         }

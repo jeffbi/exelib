@@ -57,59 +57,59 @@ std::string format_timestamp(uint32_t timestamp)
 std::string get_target_machine_string(uint16_t target)
 {
     //TODO: Maybe use an unordered_map here?
-    using ut = std::underlying_type<PeMachineType>::type;
+    using ut = std::underlying_type<PeImageFileHeader::MachineType>::type;
 
     switch (target)
     {
-        case static_cast<ut>(PeMachineType::Unknown):
+        case static_cast<ut>(PeImageFileHeader::MachineType::Unknown):
             return "Unknown";
-        case static_cast<ut>(PeMachineType::AM33):
+        case static_cast<ut>(PeImageFileHeader::MachineType::AM33):
             return "Matsushita AM33";
-        case static_cast<ut>(PeMachineType::AMD64):
+        case static_cast<ut>(PeImageFileHeader::MachineType::AMD64):
             return "x64";
-        case static_cast<ut>(PeMachineType::ARM):
+        case static_cast<ut>(PeImageFileHeader::MachineType::ARM):
             return "ARM little endian";
-        case static_cast<ut>(PeMachineType::ARM64):
+        case static_cast<ut>(PeImageFileHeader::MachineType::ARM64):
             return "ARM64 little endian";
-        case static_cast<ut>(PeMachineType::ARMNT):
+        case static_cast<ut>(PeImageFileHeader::MachineType::ARMNT):
             return "ARM Thumb-2 little endian";
-        case static_cast<ut>(PeMachineType::EBC):
+        case static_cast<ut>(PeImageFileHeader::MachineType::EBC):
             return "EFI byte code";
-        case static_cast<ut>(PeMachineType::I386):
+        case static_cast<ut>(PeImageFileHeader::MachineType::I386):
             return "Intel 386 or later processors and compatible processors";
-        case static_cast<ut>(PeMachineType::IA64):
+        case static_cast<ut>(PeImageFileHeader::MachineType::IA64):
             return "Intel Itanium processor family";
-        case static_cast<ut>(PeMachineType::M32R):
+        case static_cast<ut>(PeImageFileHeader::MachineType::M32R):
             return "Mitsubishi M32R little endian";
-        case static_cast<ut>(PeMachineType::MIPS16):
+        case static_cast<ut>(PeImageFileHeader::MachineType::MIPS16):
             return "MIPS16";
-        case static_cast<ut>(PeMachineType::MIPSFPU):
+        case static_cast<ut>(PeImageFileHeader::MachineType::MIPSFPU):
             return "MIPS with FPU";
-        case static_cast<ut>(PeMachineType::MIPSFPU16):
+        case static_cast<ut>(PeImageFileHeader::MachineType::MIPSFPU16):
             return "MIPS16 with FPU";
-        case static_cast<ut>(PeMachineType::PowerPC):
+        case static_cast<ut>(PeImageFileHeader::MachineType::PowerPC):
             return "Power PC little endian";
-        case static_cast<ut>(PeMachineType::PowerPCFP):
+        case static_cast<ut>(PeImageFileHeader::MachineType::PowerPCFP):
             return "Power PC with floating point support";
-        case static_cast<ut>(PeMachineType::R4000):
+        case static_cast<ut>(PeImageFileHeader::MachineType::R4000):
             return "MIPS little endian";
-        case static_cast<ut>(PeMachineType::RISCV32):
+        case static_cast<ut>(PeImageFileHeader::MachineType::RISCV32):
             return "RISC-V 32-bit address space";
-        case static_cast<ut>(PeMachineType::RISCV64):
+        case static_cast<ut>(PeImageFileHeader::MachineType::RISCV64):
             return "RISC-V 64-bit address space";
-        case static_cast<ut>(PeMachineType::RISCV128):
+        case static_cast<ut>(PeImageFileHeader::MachineType::RISCV128):
             return "RISC-V 128-bit address space";
-        case static_cast<ut>(PeMachineType::SH3):
+        case static_cast<ut>(PeImageFileHeader::MachineType::SH3):
             return "Hitachi SH3";
-        case static_cast<ut>(PeMachineType::SH3DSP):
+        case static_cast<ut>(PeImageFileHeader::MachineType::SH3DSP):
             return "Hitachi SH3 DSP";
-        case static_cast<ut>(PeMachineType::SH4):
+        case static_cast<ut>(PeImageFileHeader::MachineType::SH4):
             return "Hitachi SH4";
-        case static_cast<ut>(PeMachineType::SH5):
+        case static_cast<ut>(PeImageFileHeader::MachineType::SH5):
             return "Hitachi SH5";
-        case static_cast<ut>(PeMachineType::Thumb):
+        case static_cast<ut>(PeImageFileHeader::MachineType::Thumb):
             return "Thumb";
-        case static_cast<ut>(PeMachineType::WCEMIPSv2):
+        case static_cast<ut>(PeImageFileHeader::MachineType::WCEMIPSv2):
             return "MIPS little-endian WCE v2";
         default:
             return "<Not Recognized>";
@@ -149,7 +149,7 @@ void dump_header(const PeImageFileHeader &header, std::ostream &outstream)
 
     // list characteristics
     for (const auto &pair : characteristics)
-        if (header.characteristics & pair.first)
+        if (header.characteristics & static_cast<std::underlying_type<PeImageFileHeader::MachineType>::type>(pair.first))
             outstream << pair.second << ' ';
 
     outstream << '\n';

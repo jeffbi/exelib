@@ -18,23 +18,54 @@
 
 namespace {
 
+enum DataDirectoryIndex
+{
+    ExportTable         =  0,
+    ImportTable         =  1,
+    ResourceTable       =  2,
+    ExceptionTable      =  3,
+    CertificateTable    =  4,
+    BaseRelocTable      =  5,
+    Debug               =  6,
+    Architecture        =  7,
+    GlobalPointer       =  8,
+    ThreadStorageTable  =  9,
+    LoadConfigTable     = 10,
+    BoundImportTable    = 11,
+    ImportAddrTable     = 12,
+    DelayImportDesc     = 13,
+    CliHeader           = 14,
+    Reserved            = 15
+};
+/*
+void read_data_directory_entry(std::istream &stream, PeDataDirectoryEntry &entry)
+{
+    read(stream, &entry.virtual_address);
+    read(stream, &entry.size);
+}
+*/
+/*
 const PeSection *find_section_by_rva(uint32_t rva, const PeExeInfo::SectionTable &sections)
 {
-    for (size_t i = 0; i < sections.size(); ++i)
+    if (rva > 0)
     {
-        if (rva >= sections[i].virtual_address())
+        for (size_t i = 0; i < sections.size(); ++i)
         {
-            if (i == sections.size() - 1)
-                return &sections[i];    // this is the last one, so it must be it.
+            if (rva >= sections[i].virtual_address())
+            {
+                if (i == sections.size() - 1)
+                    return &sections[i];    // this is the last one, so it must be it.
 
-            if (rva < sections[i+1].virtual_address())
-                return &sections[i];
+                if (rva < sections[i+1].virtual_address())
+                    return &sections[i];
+            }
         }
     }
 
     return nullptr;
 }
 
+//TODO: Should this return size_t???
 inline uint32_t get_file_offset(uint32_t rva, const PeSection &section)
 {
     return rva - section.virtual_address() + section.header().raw_data_position;
@@ -46,7 +77,8 @@ inline bool is_rva_within_section(uint32_t rva, const PeSection &section)
     return (rva >= section.virtual_address()) && (rva <= section.virtual_address() + section.size());
 }
 #endif
-
+*/
+/*
 std::string read_sz_string(std::istream &stream)
 {
     std::string rv;
@@ -63,6 +95,44 @@ std::string read_sz_string(std::istream &stream)
     return rv;
 }
 
+std::string read_sz_string(std::istream &stream, unsigned alignment)
+{
+    std::string rv{read_sz_string(stream)};
+    auto        len = rv.size();
+
+    char ch;
+    while ((len + 1) % alignment)
+    {
+        read(stream, &ch);
+        ++len;
+    }
+
+    return rv;
+}
+
+std::string read_string(std::istream &stream, uint32_t byte_count)
+{
+    std::string rv(byte_count, '\0');
+    char        ch;
+
+    for (uint32_t i = 0; i < byte_count; ++i)
+    {
+        read(stream, &ch);
+        rv[i] = ch;
+    }
+
+    return rv;
+}
+
+std::string read_length_and_string(std::istream &stream)
+{
+    uint32_t    byte_count;
+
+    read(stream, &byte_count);
+
+    return read_string(stream, byte_count);
+}
+*/
 }   // anonymous namespace
 
 PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::Options options)
@@ -75,7 +145,7 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
         uint32_t nRVAs = 0;
 
         uint16_t magic;
-        read(stream, &magic);
+        read(stream, magic);
         stream.seekg(-static_cast<int>(sizeof(magic)), std::ios::cur);
 
         bool using_64{false};
@@ -103,8 +173,8 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
         for (uint32_t i = 0; i < nRVAs; ++i)
         {
             PeDataDirectoryEntry entry;
-            read(stream, &entry.virtual_address);
-            read(stream, &entry.size);
+            read(stream, entry.virtual_address);
+            read(stream, entry.size);
 
             _data_directory.push_back(entry);
         }
@@ -117,15 +187,15 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
             PeSectionHeader header;
 
             stream.read(reinterpret_cast<char *>(&header.name), (sizeof(header.name) / sizeof(header.name[0])));
-            read(stream, &header.virtual_size);
-            read(stream, &header.virtual_address);
-            read(stream, &header.size_of_raw_data);
-            read(stream, &header.raw_data_position);
-            read(stream, &header.relocations_position);
-            read(stream, &header.line_numbers_position);
-            read(stream, &header.number_of_relocations);
-            read(stream, &header.number_of_line_numbers);
-            read(stream, &header.characteristics);
+            read(stream, header.virtual_size);
+            read(stream, header.virtual_address);
+            read(stream, header.size_of_raw_data);
+            read(stream, header.raw_data_position);
+            read(stream, header.relocations_position);
+            read(stream, header.line_numbers_position);
+            read(stream, header.number_of_relocations);
+            read(stream, header.number_of_line_numbers);
+            read(stream, header.characteristics);
 
             if (options & LoadOptions::LoadSectionData)
             {
@@ -157,6 +227,10 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
         // Load Debug Directory
         load_debug_directory(stream, options);
 
+        // load CLI metadata information, if any
+        load_cli_metadata(stream, options);
+
+        load_resource_info(stream, options);
         //TODO: Load more here!!!
     }
     else
@@ -165,31 +239,90 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
     }
 }
 
+namespace { // this is temporary!!!
+size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint64_t &value)
+{
+    value = (static_cast<uint64_t>(vec[location++]))
+          | (static_cast<uint64_t>(vec[location++]) <<  8)
+          | (static_cast<uint64_t>(vec[location++]) << 16)
+          | (static_cast<uint64_t>(vec[location++]) << 24)
+          | (static_cast<uint64_t>(vec[location++]) << 32)
+          | (static_cast<uint64_t>(vec[location++]) << 40)
+          | (static_cast<uint64_t>(vec[location++]) << 48)
+          | (static_cast<uint64_t>(vec[location])   << 56);
+
+    return sizeof(value);
+}
+size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint32_t &value)
+{
+    value = (static_cast<uint32_t>(vec[location++]))
+          | (static_cast<uint32_t>(vec[location++]) <<  8)
+          | (static_cast<uint32_t>(vec[location++]) << 16)
+          | (static_cast<uint32_t>(vec[location])   << 24);
+
+    return sizeof(value);
+}
+size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint16_t &value)
+{
+    value = (static_cast<uint16_t>(vec[location++]))
+          | (static_cast<uint16_t>(vec[location]) <<  8);
+
+    return sizeof(value);
+}
+size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint8_t &value)
+{
+    value = vec[location];
+
+    return sizeof(value);
+}
+
+template<typename T>
+inline int count_set_bits(T value)
+{
+    int rv{0};
+
+    for (T i = 0; i < sizeof(T) * 8; ++i)
+        if (value & (static_cast<T>(1) << i))
+            ++rv;
+
+    return rv;
+}
+
+template<typename T>
+inline bool is_bit_set(T value, int bit_number)
+{
+    return value & (static_cast<T>(1) << bit_number);
+}
+}   // end of anonymous namespace
+
+
+
+
 void PeExeInfo::load_image_file_header(std::istream &stream)
 {
-    read(stream, &_image_file_header.signature);
+    read(stream, _image_file_header.signature);
     if (_image_file_header.signature != PeImageFileHeader::pe_signature)
         throw std::runtime_error("not a PE executable file.");
 
-    read(stream, &_image_file_header.target_machine);
-    read(stream, &_image_file_header.num_sections);
-    read(stream, &_image_file_header.timestamp);
-    read(stream, &_image_file_header.symbol_table_offset);
-    read(stream, &_image_file_header.num_symbols);
-    read(stream, &_image_file_header.optional_header_size);
-    read(stream, &_image_file_header.characteristics);
+    read(stream, _image_file_header.target_machine);
+    read(stream, _image_file_header.num_sections);
+    read(stream, _image_file_header.timestamp);
+    read(stream, _image_file_header.symbol_table_offset);
+    read(stream, _image_file_header.num_symbols);
+    read(stream, _image_file_header.optional_header_size);
+    read(stream, _image_file_header.characteristics);
 }
 
 void PeExeInfo::load_optional_header_base(std::istream &stream, PeOptionalHeaderBase &header)
 {
-    read(stream, &header.magic);
-    read(stream, &header.linker_version_major);
-    read(stream, &header.linker_version_minor);
-    read(stream, &header.code_size);
-    read(stream, &header.initialized_data_size);
-    read(stream, &header.uninitialized_data_size);
-    read(stream, &header.address_of_entry_point);
-    read(stream, &header.base_of_code);
+    read(stream, header.magic);
+    read(stream, header.linker_version_major);
+    read(stream, header.linker_version_minor);
+    read(stream, header.code_size);
+    read(stream, header.initialized_data_size);
+    read(stream, header.uninitialized_data_size);
+    read(stream, header.address_of_entry_point);
+    read(stream, header.base_of_code);
 }
 
 void PeExeInfo::load_optional_header_32(std::istream &stream)
@@ -200,28 +333,28 @@ void PeExeInfo::load_optional_header_32(std::istream &stream)
     auto  &header = *_optional_32;
 
     load_optional_header_base(stream, header);
-    read(stream, &header.base_of_data);
-    read(stream, &header.image_base);
-    read(stream, &header.section_alignment);
-    read(stream, &header.file_alignment);
-    read(stream, &header.os_version_major);
-    read(stream, &header.os_version_minor);
-    read(stream, &header.image_version_major);
-    read(stream, &header.image_version_minor);
-    read(stream, &header.subsystem_version_major);
-    read(stream, &header.subsystem_version_minor);
-    read(stream, &header.win32_version_value);
-    read(stream, &header.size_of_image);
-    read(stream, &header.size_of_headers);
-    read(stream, &header.checksum);
-    read(stream, &header.subsystem);
-    read(stream, &header.dll_characteristics);
-    read(stream, &header.size_of_stack_reserve);
-    read(stream, &header.size_of_stack_commit);
-    read(stream, &header.size_of_heap_reserve);
-    read(stream, &header.size_of_heap_commit);
-    read(stream, &header.loader_flags);
-    read(stream, &header.num_rva_and_sizes);
+    read(stream, header.base_of_data);
+    read(stream, header.image_base);
+    read(stream, header.section_alignment);
+    read(stream, header.file_alignment);
+    read(stream, header.os_version_major);
+    read(stream, header.os_version_minor);
+    read(stream, header.image_version_major);
+    read(stream, header.image_version_minor);
+    read(stream, header.subsystem_version_major);
+    read(stream, header.subsystem_version_minor);
+    read(stream, header.win32_version_value);
+    read(stream, header.size_of_image);
+    read(stream, header.size_of_headers);
+    read(stream, header.checksum);
+    read(stream, header.subsystem);
+    read(stream, header.dll_characteristics);
+    read(stream, header.size_of_stack_reserve);
+    read(stream, header.size_of_stack_commit);
+    read(stream, header.size_of_heap_reserve);
+    read(stream, header.size_of_heap_commit);
+    read(stream, header.loader_flags);
+    read(stream, header.num_rva_and_sizes);
 }
 
 void PeExeInfo::load_optional_header_64(std::istream &stream)
@@ -232,35 +365,37 @@ void PeExeInfo::load_optional_header_64(std::istream &stream)
     auto  &header = *_optional_64;
 
     load_optional_header_base(stream, header);
-    read(stream, &header.image_base);
-    read(stream, &header.section_alignment);
-    read(stream, &header.file_alignment);
-    read(stream, &header.os_version_major);
-    read(stream, &header.os_version_minor);
-    read(stream, &header.image_version_major);
-    read(stream, &header.image_version_minor);
-    read(stream, &header.subsystem_version_major);
-    read(stream, &header.subsystem_version_minor);
-    read(stream, &header.win32_version_value);
-    read(stream, &header.size_of_image);
-    read(stream, &header.size_of_headers);
-    read(stream, &header.checksum);
-    read(stream, &header.subsystem);
-    read(stream, &header.dll_characteristics);
-    read(stream, &header.size_of_stack_reserve);
-    read(stream, &header.size_of_stack_commit);
-    read(stream, &header.size_of_heap_reserve);
-    read(stream, &header.size_of_heap_commit);
-    read(stream, &header.loader_flags);
-    read(stream, &header.num_rva_and_sizes);
+    read(stream, header.image_base);
+    read(stream, header.section_alignment);
+    read(stream, header.file_alignment);
+    read(stream, header.os_version_major);
+    read(stream, header.os_version_minor);
+    read(stream, header.image_version_major);
+    read(stream, header.image_version_minor);
+    read(stream, header.subsystem_version_major);
+    read(stream, header.subsystem_version_minor);
+    read(stream, header.win32_version_value);
+    read(stream, header.size_of_image);
+    read(stream, header.size_of_headers);
+    read(stream, header.checksum);
+    read(stream, header.subsystem);
+    read(stream, header.dll_characteristics);
+    read(stream, header.size_of_stack_reserve);
+    read(stream, header.size_of_stack_commit);
+    read(stream, header.size_of_heap_reserve);
+    read(stream, header.size_of_heap_commit);
+    read(stream, header.loader_flags);
+    read(stream, header.num_rva_and_sizes);
 }
 
 
 void PeExeInfo::load_exports(std::istream &stream)
 {
-    if (_data_directory.size() >= 1 && _data_directory[0].size > 0)
+    constexpr int   dir_index = DataDirectoryIndex::ExportTable;
+
+    if (_data_directory.size() >= dir_index + 1 && _data_directory[dir_index].size > 0)
     {
-        auto    rva{_data_directory[0].virtual_address};
+        auto    rva{_data_directory[dir_index].virtual_address};
         auto    section{find_section_by_rva(rva, _sections)};
 
         if (section)
@@ -272,17 +407,17 @@ void PeExeInfo::load_exports(std::istream &stream)
             stream.seekg(pos);
 
             auto    &exports_directory = _exports->directory;
-            read(stream, &exports_directory.export_flags);
-            read(stream, &exports_directory.timestamp);
-            read(stream, &exports_directory.version_major);
-            read(stream, &exports_directory.version_minor);
-            read(stream, &exports_directory.name_rva);
-            read(stream, &exports_directory.ordinal_base);
-            read(stream, &exports_directory.num_address_table_entries);
-            read(stream, &exports_directory.num_name_pointers);
-            read(stream, &exports_directory.export_address_rva);
-            read(stream, &exports_directory.name_pointer_rva);
-            read(stream, &exports_directory.ordinal_table_rva);
+            read(stream, exports_directory.export_flags);
+            read(stream, exports_directory.timestamp);
+            read(stream, exports_directory.version_major);
+            read(stream, exports_directory.version_minor);
+            read(stream, exports_directory.name_rva);
+            read(stream, exports_directory.ordinal_base);
+            read(stream, exports_directory.num_address_table_entries);
+            read(stream, exports_directory.num_name_pointers);
+            read(stream, exports_directory.export_address_rva);
+            read(stream, exports_directory.name_pointer_rva);
+            read(stream, exports_directory.ordinal_table_rva);
 
             stream.seekg(get_file_offset(exports_directory.name_rva, *section));
             _exports->name = read_sz_string(stream);
@@ -326,7 +461,7 @@ void PeExeInfo::load_exports(std::istream &stream)
                 {
                     PeExportAddressTableEntry   entry;
 
-                    read(stream, &entry.export_rva);
+                    read(stream, entry.export_rva);
                     _exports->address_table.push_back(entry);
                 }
             }
@@ -361,9 +496,11 @@ void PeExeInfo::load_exports(std::istream &stream)
 
 void PeExeInfo::load_imports(std::istream &stream, bool using_64)
 {
-    if (_data_directory.size() >= 2 && _data_directory[1].size > 0)
+    constexpr int   dir_index = DataDirectoryIndex::ImportTable;
+
+    if (_data_directory.size() >= dir_index + 1 && _data_directory[dir_index].size > 0)
     {
-        auto    rva{_data_directory[1].virtual_address};
+        auto    rva{_data_directory[dir_index].virtual_address};
         auto    section{find_section_by_rva(rva, _sections)};
 
         if (section)
@@ -377,11 +514,11 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
             PeImportDirectoryEntry  entry;
             while (true)
             {
-                read(stream, &entry.import_lookup_table_rva);
-                read(stream, &entry.timestamp);
-                read(stream, &entry.forwarder_chain);
-                read(stream, &entry.name_rva);
-                read(stream, &entry.import_address_table_rva);
+                read(stream, entry.import_lookup_table_rva);
+                read(stream, entry.timestamp);
+                read(stream, entry.forwarder_chain);
+                read(stream, entry.name_rva);
+                read(stream, entry.import_address_table_rva);
 
                 if (   entry.import_lookup_table_rva == 0
                     && entry.timestamp == 0
@@ -401,11 +538,11 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                 stream.seekg(get_file_offset(entry.import_address_table_rva, *section));
                 while (true)
                 {
-                    PeImportLookupEntry lookup_entry {0};
+                    PeImportLookupEntry lookup_entry{0};
                     if (using_64)
                     {
                         uint64_t value;
-                        read(stream, &value);
+                        read(stream, value);
                         if (value == 0)
                             break;
                         if (value & 0x8000000000000000)
@@ -422,7 +559,7 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                     else
                     {
                         uint32_t value;
-                        read(stream, &value);
+                        read(stream, value);
                         if (value == 0)
                             break;
                         if (value & 0x80000000)
@@ -441,7 +578,7 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                     {
                         auto here = stream.tellg();
                         stream.seekg(get_file_offset(lookup_entry.name_rva, *section));
-                        read(stream, &lookup_entry.hint);
+                        read(stream, lookup_entry.hint);
                         lookup_entry.name = read_sz_string(stream);
 
                         stream.seekg(here);
@@ -456,14 +593,16 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
 
 void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options options)
 {
-    if (_data_directory.size() >= 7 && _data_directory[6].size > 0)
+    constexpr int   dir_index = DataDirectoryIndex::Debug;
+
+    if (_data_directory.size() >= dir_index + 1 && _data_directory[dir_index].size > 0)
     {
-        auto    rva{_data_directory[6].virtual_address};
+        auto    rva{_data_directory[dir_index].virtual_address};
         auto    section{find_section_by_rva(rva, _sections)};
 
         if (section)
         {
-            const size_t    directory_size{_data_directory[6].size};
+            const size_t    directory_size{_data_directory[dir_index].size};
             size_t          bytes_read{0};
 
             auto    pos{get_file_offset(rva, *section)};
@@ -473,14 +612,14 @@ void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options 
             while (bytes_read < directory_size)
             {
                 PeDebugDirectoryEntry   entry;
-                bytes_read += read(stream, &entry.characteristics);
-                bytes_read += read(stream, &entry.timestamp);
-                bytes_read += read(stream, &entry.version_major);
-                bytes_read += read(stream, &entry.version_minor);
-                bytes_read += read(stream, &entry.type);
-                bytes_read += read(stream, &entry.size_of_data);
-                bytes_read += read(stream, &entry.address_of_raw_data);
-                bytes_read += read(stream, &entry.pointer_to_raw_data);
+                bytes_read += read(stream, entry.characteristics);
+                bytes_read += read(stream, entry.timestamp);
+                bytes_read += read(stream, entry.version_major);
+                bytes_read += read(stream, entry.version_minor);
+                bytes_read += read(stream, entry.type);
+                bytes_read += read(stream, entry.size_of_data);
+                bytes_read += read(stream, entry.address_of_raw_data);
+                bytes_read += read(stream, entry.pointer_to_raw_data);
 
                 entry.data_loaded = false;
                 _debug_directory.emplace_back(std::move(entry));
@@ -527,6 +666,50 @@ void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options 
             //TODO: It is possible for the Debug Directory to be outside the
             //      boundaries of any Section. Not sure how to find the directory
             //      in the file without a section to refer to.
+        }
+    }
+}
+
+
+void PeExeInfo::load_cli_metadata(std::istream &stream, LoadOptions::Options options)
+{
+    constexpr int   dir_index = DataDirectoryIndex::CliHeader;
+
+    // start with the CLI header. No header, no metadata.
+    if (_data_directory.size() >= dir_index + 1 && _data_directory[dir_index].size > 0)
+    {
+        auto    rva{_data_directory[dir_index].virtual_address};
+        auto    section{find_section_by_rva(rva, _sections)};
+
+        if (section)
+        {
+            // Load the CLI header
+            auto    pos{get_file_offset(rva, *section)};
+            auto    here{stream.tellg()};
+            stream.seekg(pos);
+
+            _cli_metadata = std::make_unique<PeCliMetadata>();
+            _cli_metadata->load(stream, _sections, options);
+            stream.seekg(here);
+        }
+    }
+}
+
+void PeExeInfo::load_resource_info(std::istream &stream, LoadOptions::Options options)
+{
+    if (_data_directory.size() >= 3 && _data_directory[2].size > 0)
+    {
+        auto    rva{_data_directory[2].virtual_address};
+        auto    section{find_section_by_rva(rva, _sections)};
+
+        if (section)
+        {
+            auto    pos{get_file_offset(rva, *section)};
+            auto    here{stream.tellg()};
+            stream.seekg(pos);
+
+            //TODO: Finish this!!!
+
         }
     }
 }

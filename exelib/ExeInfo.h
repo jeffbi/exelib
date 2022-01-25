@@ -55,9 +55,9 @@ public:
 
             // Read for both NE and PE signatures
             stream.seekg(_mz_info.header().new_header_offset);
-            read(stream, &two_byte_sig);
+            read(stream, two_byte_sig);
             stream.seekg(_mz_info.header().new_header_offset);
-            read(stream, &four_byte_sig);
+            read(stream, four_byte_sig);
             stream.seekg(_mz_info.header().new_header_offset);
 
             if (two_byte_sig == NeExeHeader::ne_signature)

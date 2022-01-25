@@ -110,7 +110,6 @@ void PeCliMetadata::load(std::istream &stream, LoadOptions::Options options)
         {
             std::vector<uint8_t>    stream_bytes(_stream_headers[i].size);
 
-            //stream.seekg(metadata_header_pos + _stream_headers[i].offset);
             stream.seekg(metadata_header_pos + static_cast<std::streamoff>(_stream_headers[i].offset));
             stream.read(reinterpret_cast<char *>(&stream_bytes[0]), _stream_headers[i].size);
 
@@ -239,32 +238,11 @@ std::vector<std::vector<uint8_t>> PeCliMetadata::get_blob_heap_blobs() const
 
 std::vector<Guid> PeCliMetadata::get_guid_heap_guids() const
 {
-#if 0
+    BytesReader         reader{get_stream("#GUID")};
+    size_t              num_guids{reader.size() / sizeof(Guid)};
     std::vector<Guid>   rv;
-    const auto         &bytes{get_stream("#GUID")};
-    size_t              num_guids{bytes.size() / sizeof(Guid)};
-    const auto         *p{bytes.data()};
 
-    for (size_t i = 0; i < num_guids; ++i)
-    {
-        Guid    guid;
-
-        guid.data1 = *(reinterpret_cast<const uint32_t *>(p));
-        p += sizeof(uint32_t);
-        guid.data2 = *(reinterpret_cast<const uint16_t *>(p));
-        p += sizeof(uint16_t);
-        guid.data3 = *(reinterpret_cast<const uint16_t *>(p));
-        p += sizeof(uint16_t);
-        std::memcpy(guid.data4, p, sizeof(guid.data4));
-        p += sizeof(guid.data4);
-
-        rv.push_back(guid);
-    }
-#else
-    BytesReader reader{get_stream("#GUID")};
-    size_t      num_guids{reader.size() / sizeof(Guid)};
-    std::vector<Guid>   rv(num_guids);
-
+    rv.reserve(num_guids);
     for (size_t i = 0; i < num_guids; ++i)
     {
         Guid    guid;
@@ -276,7 +254,6 @@ std::vector<Guid> PeCliMetadata::get_guid_heap_guids() const
 
         rv.push_back(guid);
     }
-#endif
 
     return rv;
 }
@@ -550,7 +527,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
         switch (_valid_table_types[i])
         {
             case PeCliMetadataTableId::Assembly:
-                _assembly_table = std::make_unique<std::vector<PeCliMetadataRowAssembly>>(row_count);
+                _assembly_table = std::make_unique<std::vector<PeCliMetadataRowAssembly>>();
+                _assembly_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowAssembly    row;
@@ -568,7 +547,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::AssemblyOS:
-                _assembly_os_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyOS>>(row_count);
+                _assembly_os_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyOS>>();
+                _assembly_os_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowAssemblyOS  row;
@@ -580,7 +561,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::AssemblyProcessor:
-                _assembly_processor = std::make_unique<std::vector<PeCliMetadataRowAssemblyProcessor>>(row_count);
+                _assembly_processor = std::make_unique<std::vector<PeCliMetadataRowAssemblyProcessor>>();
+                _assembly_processor->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowAssemblyProcessor   row;
@@ -590,7 +573,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::AssemblyRef:
-                _assembly_ref_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyRef>>(row_count);
+                _assembly_ref_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyRef>>();
+                _assembly_ref_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowAssemblyRef row;
@@ -608,7 +593,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::AssemblyRefOS:
-                _assembly_ref_os_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyRefOS>>(row_count);
+                _assembly_ref_os_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyRefOS>>();
+                _assembly_ref_os_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowAssemblyRefOS   row;
@@ -621,7 +608,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::AssemblyRefProcessor:
-                _assembly_ref_processor_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyRefProcessor>>(row_count);
+                _assembly_ref_processor_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyRefProcessor>>();
+                _assembly_ref_processor_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowAssemblyRefProcessor    row;
@@ -632,7 +621,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::ClassLayout:
-                _class_layout_table = std::make_unique<std::vector<PeCliMetadataRowClassLayout>>(row_count);
+                _class_layout_table = std::make_unique<std::vector<PeCliMetadataRowClassLayout>>();
+                _class_layout_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowClassLayout row;
@@ -644,7 +635,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::Constant:
-                _constant_table = std::make_unique<std::vector<PeCliMetadataRowConstant>>(row_count);
+                _constant_table = std::make_unique<std::vector<PeCliMetadataRowConstant>>();
+                _constant_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowConstant    row;
@@ -659,7 +652,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::CustomAttribute:
-                _custom_attribute_table = std::make_unique<std::vector<PeCliMetadataRowCustomAttribute>>(row_count);
+                _custom_attribute_table = std::make_unique<std::vector<PeCliMetadataRowCustomAttribute>>();
+                _custom_attribute_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowCustomAttribute row;
@@ -692,7 +687,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::DeclSecurity:
-                _decl_security_table = std::make_unique<std::vector<PeCliMetadataRowDeclSecurity>>(row_count);
+                _decl_security_table = std::make_unique<std::vector<PeCliMetadataRowDeclSecurity>>();
+                _decl_security_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowDeclSecurity    row;
@@ -704,7 +701,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::Event:
-                _event_table = std::make_unique<std::vector<PeCliMetadataRowEvent>>(row_count);
+                _event_table = std::make_unique<std::vector<PeCliMetadataRowEvent>>();
+                _event_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowEvent   row;
@@ -716,7 +715,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::EventMap:
-                _event_map_table = std::make_unique<std::vector<PeCliMetadataRowEventMap>>(row_count);
+                _event_map_table = std::make_unique<std::vector<PeCliMetadataRowEventMap>>();
+                _event_map_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowEventMap  row;
@@ -727,7 +728,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::ExportedType:
-                _exported_type_table = std::make_unique<std::vector<PeCliMetadataRowExportedType>>(row_count);
+                _exported_type_table = std::make_unique<std::vector<PeCliMetadataRowExportedType>>();
+                _exported_type_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowExportedType    row;
@@ -741,7 +744,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::Field:
-                _field_table = std::make_unique<std::vector<PeCliMetadataRowField>>(row_count);
+                _field_table = std::make_unique<std::vector<PeCliMetadataRowField>>();
+                _field_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowField   row;
@@ -753,7 +758,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::FieldLayout:
-                _field_layout_table = std::make_unique<std::vector<PeCliMetadataRowFieldLayout>>(row_count);
+                _field_layout_table = std::make_unique<std::vector<PeCliMetadataRowFieldLayout>>();
+                _field_layout_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowFieldLayout row;
@@ -764,7 +771,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::FieldMarshal:
-                _field_marshal_table = std::make_unique<std::vector<PeCliMetadataRowFieldMarshal>>(row_count);
+                _field_marshal_table = std::make_unique<std::vector<PeCliMetadataRowFieldMarshal>>();
+                _field_marshal_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowFieldMarshal    row;
@@ -775,7 +784,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::FieldRVA:
-                _field_rva_table = std::make_unique<std::vector<PeCliMetadataRowFieldRVA>>(row_count);
+                _field_rva_table = std::make_unique<std::vector<PeCliMetadataRowFieldRVA>>();
+                _field_rva_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowFieldRVA    row;
@@ -786,7 +797,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::File:
-                _file_table = std::make_unique<std::vector<PeCliMetadataRowFile>>(row_count);
+                _file_table = std::make_unique<std::vector<PeCliMetadataRowFile>>();
+                _file_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowFile    row;
@@ -798,7 +811,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::GenericParam:
-                _generic_param_table = std::make_unique<std::vector<PeCliMetadataRowGenericParam>>(row_count);
+                _generic_param_table = std::make_unique<std::vector<PeCliMetadataRowGenericParam>>();
+                _generic_param_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowGenericParam    row;
@@ -811,7 +826,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::GenericParamConstraint:
-                _generic_param_constraint_table = std::make_unique<std::vector<PeCliMetadataRowGenericParamConstraint>>(row_count);
+                _generic_param_constraint_table = std::make_unique<std::vector<PeCliMetadataRowGenericParamConstraint>>();
+                _generic_param_constraint_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowGenericParamConstraint  row;
@@ -822,7 +839,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::ImplMap:
-                _impl_map_table = std::make_unique<std::vector<PeCliMetadataRowImplMap>>(row_count);
+                _impl_map_table = std::make_unique<std::vector<PeCliMetadataRowImplMap>>();
+                _impl_map_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowImplMap row;
@@ -836,7 +855,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::InterfaceImpl:
-                _interface_impl_table = std::make_unique<std::vector<PeCliMetadataRowInterfaceImpl>>(row_count);
+                _interface_impl_table = std::make_unique<std::vector<PeCliMetadataRowInterfaceImpl>>();
+                _interface_impl_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowInterfaceImpl   row;
@@ -847,7 +868,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::ManifestResource:
-                _manifest_resource_table = std::make_unique<std::vector<PeCliMetadataRowManifestResource>>(row_count);
+                _manifest_resource_table = std::make_unique<std::vector<PeCliMetadataRowManifestResource>>();
+                _manifest_resource_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowManifestResource  row;
@@ -860,7 +883,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::MemberRef:
-                _member_ref_table = std::make_unique<std::vector<PeCliMetadataRowMemberRef>>(row_count);
+                _member_ref_table = std::make_unique<std::vector<PeCliMetadataRowMemberRef>>();
+                _member_ref_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowMemberRef   row;
@@ -872,7 +897,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::MethodDef:
-                _method_def_table = std::make_unique<std::vector<PeCliMetadataRowMethodDef>>(row_count);
+                _method_def_table = std::make_unique<std::vector<PeCliMetadataRowMethodDef>>();
+                _method_def_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowMethodDef   row;
@@ -887,7 +914,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::MethodImpl:
-                _method_impl_table = std::make_unique<std::vector<PeCliMetadataRowMethodImpl>>(row_count);
+                _method_impl_table = std::make_unique<std::vector<PeCliMetadataRowMethodImpl>>();
+                _method_impl_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowMethodImpl  row;
@@ -899,7 +928,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::MethodSemantics:
-                _method_semantics_table = std::make_unique<std::vector<PeCliMetadataRowMethodSemantics>>(row_count);
+                _method_semantics_table = std::make_unique<std::vector<PeCliMetadataRowMethodSemantics>>();
+                _method_semantics_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowMethodSemantics row;
@@ -911,7 +942,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::MethodSpec:
-                _method_spec_table = std::make_unique<std::vector<PeCliMetadataRowMethodSpec>>(row_count);
+                _method_spec_table = std::make_unique<std::vector<PeCliMetadataRowMethodSpec>>();
+                _method_spec_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowMethodSpec  row;
@@ -922,7 +955,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::Module:
-                _module_table = std::make_unique<std::vector<PeCliMetadataRowModule>>(row_count);
+                _module_table = std::make_unique<std::vector<PeCliMetadataRowModule>>();
+                _module_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowModule  row;
@@ -936,7 +971,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::ModuleRef:
-                _module_ref_table = std::make_unique<std::vector<PeCliMetadataRowModuleRef>>(row_count);
+                _module_ref_table = std::make_unique<std::vector<PeCliMetadataRowModuleRef>>();
+                _module_ref_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowModuleRef   row;
@@ -946,7 +983,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::NestedClass:
-                _nested_class_table = std::make_unique<std::vector<PeCliMetadataRowNestedClass>>(row_count);
+                _nested_class_table = std::make_unique<std::vector<PeCliMetadataRowNestedClass>>();
+                _nested_class_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowNestedClass row;
@@ -958,7 +997,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::Param:
-                _param_table = std::make_unique<std::vector<PeCliMetadataRowParam>>(row_count);
+                _param_table = std::make_unique<std::vector<PeCliMetadataRowParam>>();
+                _param_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowParam   row;
@@ -970,7 +1011,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::Property:
-                _property_table = std::make_unique<std::vector<PeCliMetadataRowProperty>>(row_count);
+                _property_table = std::make_unique<std::vector<PeCliMetadataRowProperty>>();
+                _property_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowProperty    row;
@@ -982,7 +1025,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::PropertyMap:
-                _property_map_table = std::make_unique<std::vector<PeCliMetadataRowPropertyMap>>(row_count);
+                _property_map_table = std::make_unique<std::vector<PeCliMetadataRowPropertyMap>>();
+                _property_map_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowPropertyMap row;
@@ -993,7 +1038,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::StandAloneSig:
-                _stand_alone_sig_table = std::make_unique<std::vector<PeCliMetadataRowStandAloneSig>>(row_count);
+                _stand_alone_sig_table = std::make_unique<std::vector<PeCliMetadataRowStandAloneSig>>();
+                _stand_alone_sig_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowStandAloneSig   row;
@@ -1003,7 +1050,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::TypeDef:
-                _type_def_table = std::make_unique<std::vector<PeCliMetadataRowTypeDef>>(row_count);
+                _type_def_table = std::make_unique<std::vector<PeCliMetadataRowTypeDef>>();
+                _type_def_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowTypeDef row;
@@ -1018,7 +1067,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::TypeRef:
-                _type_ref_table = std::make_unique<std::vector<PeCliMetadataRowTypeRef>>(row_count);
+                _type_ref_table = std::make_unique<std::vector<PeCliMetadataRowTypeRef>>();
+                _type_ref_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowTypeRef row;
@@ -1030,7 +1081,9 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::TypeSpec:
-                _type_spec_table = std::make_unique<std::vector<PeCliMetadataRowTypeSpec>>(row_count);
+                _type_spec_table = std::make_unique<std::vector<PeCliMetadataRowTypeSpec>>();
+                _type_spec_table->reserve(row_count);
+
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowTypeSpec    row;
@@ -1074,5 +1127,5 @@ void PeCli::load(std::istream &stream, const std::vector<PeSection> &sections, L
             _metadata->load(stream, options);
         }
     }
-    //TODO: Load the other CLI information!!!
+    //TODO: Load any other CLI information!!!
 }

@@ -817,9 +817,9 @@ struct PeCliMetadataTablesStreamHeader
     // Following this is an array of tables.
 };
 
-//
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 // The following structures define the rows in the various metadata tables contained in the #~ stream.
-//
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Row of Assembly table (0x20)
 struct PeCliMetadataRowAssembly
@@ -1144,6 +1144,9 @@ struct PeCliMetadataRowTypeSpec
 class PeCliMetadataTables
 {
 public:
+    PeCliMetadataTables()
+    {}
+
     void load(BytesReader &reader);
 
 private:
@@ -1252,24 +1255,24 @@ struct PeCliMetadataTableIndex
 class PeCliMetadata
 {
 public:
-    PeCliMetadata()
-    {}
+    PeCliMetadata() = default;
+    PeCliMetadata(const PeCliMetadata &) = delete;              ///< The copy constructor is deleted
+    PeCliMetadata(PeCliMetadata &&) = delete;                   ///< The copy constructor is deleted
+    PeCliMetadata &operator=(const PeCliMetadata &) = delete;   ///< The copy assignment operator is deleted
+    PeCliMetadata &operator=(PeCliMetadata &) = delete;         ///< The move assignment operator is deleted
 
-    //void load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options);
     void load(std::istream &stream, LoadOptions::Options options);
 
-    const PeCliHeader &cli_header() const noexcept
-    {
-        return _cli_header;
-    }
     const PeCliMetadataHeader *metadata_header() const noexcept
     {
         return _metadata_header.get();
     }
+
     const std::vector<PeCliStreamHeader> &stream_headers() const noexcept
     {
         return _stream_headers;
     }
+
     const std::vector<std::vector<uint8_t>> &streams() const noexcept
     {
         return _streams;
@@ -1294,7 +1297,7 @@ public:
     /// \brief  Return a vector of strings as contained in the CLI \#Strings stream.
     std::vector<std::string> get_strings_heap_strings() const;
 
-    /// \brief  Return a vector of strings as contained in the CLI \#US stream.
+    /// \brief  Return a vector of std::u16strings as contained in the CLI \#US stream.
     std::vector<std::u16string> get_us_heap_strings() const;
 
     /// \brief  Return a vector of vectors of byte blobs as contained in the CLI \#Blob stream.
@@ -1314,7 +1317,6 @@ public:
 private:
     void load_metadata_tables();
 
-    PeCliHeader                             _cli_header;
     std::unique_ptr<PeCliMetadataHeader>    _metadata_header;
     std::vector<PeCliStreamHeader>          _stream_headers;
     std::vector<std::vector<uint8_t>>       _streams;   // all metadata streams
@@ -1325,12 +1327,18 @@ private:
 class PeCli
 {
 public:
-    PeCli() = default;
+    PeCli(size_t offset, const PeSection &section)
+      : _file_offset{offset},
+        _section{section}
+    {}
+
+    PeCli() = delete;                           ///< The default constructor is deleted
     PeCli(const PeCli &) = delete;              ///< The copy constructor is deleted
     PeCli(PeCli &&) = delete;                   ///< The copy constructor is deleted
     PeCli &operator=(const PeCli &) = delete;   ///< The copy assignment operator is deleted
     PeCli &operator=(PeCli &) = delete;         ///< The move assignment operator is deleted
 
+    /// \brief  Load the CLI information.
     void load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options);
 
     /// \brief  Get a pointer to the CLI metadata, if any.
@@ -1340,7 +1348,21 @@ public:
         return _metadata.get();
     }
 
+    /// \brief  Return the file offset from which the CLI data was read.
+    size_t file_offset() const noexcept
+    {
+        return _file_offset;
+    }
+
+    /// \brief  Return a reference to the image section from which the CLI data was read.
+    const PeSection &section() const noexcept
+    {
+        return _section;
+    }
+
 private:
+    size_t                          _file_offset;
+    const PeSection                &_section;
     PeCliHeader                     _cli_header;    // The CLI header
     std::unique_ptr<PeCliMetadata>  _metadata;      // The CLI metadata, if loaded;
 };

@@ -687,7 +687,7 @@ void PeExeInfo::load_cli(std::istream &stream, LoadOptions::Options options)
             auto    here{stream.tellg()};
             stream.seekg(pos);
 
-            _cli = std::make_unique<PeCli>();
+            _cli = std::make_unique<PeCli>(pos, *section);
             _cli->load(stream, _sections, options);
 
             stream.seekg(here);

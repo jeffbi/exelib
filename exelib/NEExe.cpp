@@ -321,7 +321,9 @@ void NeExeInfo::load_module_name_table(std::istream &stream)
     if (header().num_module_entries)
     {
         auto                    table_location = header_position() + header().module_table_offset;
-        std::vector<uint16_t>   mod_offsets(header().num_module_entries);
+        std::vector<uint16_t>   mod_offsets;
+
+        mod_offsets.reserve(header().num_module_entries);
 
         // load up all the module-name offsets
         stream.seekg(table_location);

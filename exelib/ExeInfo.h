@@ -15,7 +15,7 @@
 #include "MZExe.h"
 #include "NEExe.h"
 #include "PEExe.h"
-#include "readstream.h"
+#include "readers.h"
 
 /// \brief  Possible values for the type of executable.
 enum class ExeType

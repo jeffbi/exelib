@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "LoadOptions.h"
-#include "readstream.h"
+#include "readers.h"
 
 
 /// \brief  Represents a GUID

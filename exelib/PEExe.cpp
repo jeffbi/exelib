@@ -14,7 +14,7 @@
 
 #include "LoadOptions.h"
 #include "PEExe.h"
-#include "readstream.h"
+#include "readers.h"
 
 namespace {
 

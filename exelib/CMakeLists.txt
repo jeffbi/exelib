@@ -7,7 +7,7 @@ target_sources(exelib
         NEExe.cpp
         PEExe.cpp
         CLI.cpp
-        readstream.h
+        readers.h
         resource_type.h
     PUBLIC
         LoadOptions.h

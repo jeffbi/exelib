@@ -11,7 +11,7 @@
 
 #include "LoadOptions.h"
 #include "PEExe.h"
-#include "readstream.h"
+#include "readers.h"
 
 namespace {
 // calculate the length of an entry in a #US or #Blob CLI metadata stream

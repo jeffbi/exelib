@@ -293,6 +293,7 @@ inline bool is_bit_set(T value, int bit_number)
 {
     return value & (static_cast<T>(1) << bit_number);
 }
+
 }   // end of anonymous namespace
 
 

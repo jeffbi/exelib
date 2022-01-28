@@ -716,6 +716,7 @@ enum PeCliEntryPointFlags : uint32_t
     Preferred32Bit      = 0x00020000
 };
 
+/// \brief  Represents the CLI header.
 struct PeCliHeader
 {
     uint32_t                size;
@@ -773,8 +774,8 @@ enum class PeCliMetadataTableId
     Constant                = 0x0B,
     CustomAttribute         = 0x0C,
     DeclSecurity            = 0x0E,
-    EventMap                = 0x12,
     Event                   = 0x14,
+    EventMap                = 0x12,
     ExportedType            = 0x27,
     Field                   = 0x04,
     FieldLayout             = 0x10,
@@ -801,6 +802,55 @@ enum class PeCliMetadataTableId
     TypeDef                 = 0x02,
     TypeRef                 = 0x01,
     TypeSpec                = 0x1B
+};
+
+/// \brief  Provides values primarily used in signatures, but are also used
+///         in the Constant metadata table.
+enum class PeCliMetadataElementType
+{
+    End             = 0x00,     // Ends a list
+    Void            = 0x01,
+    Boolean         = 0x02,
+    Char            = 0x03,
+    I1              = 0x04,
+    U1              = 0x05,
+    I2              = 0x06,
+    U2              = 0x07,
+    I4              = 0x08,
+    U4              = 0x09,
+    I8              = 0x0A,
+    U8              = 0x0B,
+    R4              = 0x0C,
+    R8              = 0x0D,
+    String          = 0x0E,
+    Ptr             = 0x0F,
+    ByRef           = 0x10,
+    ValueType       = 0x11,
+    Class           = 0x12,
+    Var             = 0x13,     // Generic parameter in generic type definition
+    Array           = 0x14,
+    GenericInst     = 0x15,     // Generic type instantiation
+    TypedByRef      = 0x16,
+    IntPtr          = 0x18,     // System.IntPtr
+    UIntPtr         = 0x19,     // System.UintPtr
+    FnPtr           = 0x1B,
+    Object          = 0x1C,     // System.Object
+    SzArray         = 0x1D,     // Single-dimension array with 0 lower bound
+    MVar            = 0x1E,     // Generic parameter in generic method definition
+    CModReq         = 0x1F,     // Required modifier
+    CModOpt         = 0x20,     // Optional modifier
+    Internal        = 0x21,     // Implemented by the CLI
+    Modifier        = 0x40,
+    Sentinel        = 0x41,
+    Pinned          = 0x45,
+
+    // The following enums have not been assigned names by ECMA-335, although the values have.
+    TypeArg         = 0x50,     // Argument of type System.Type
+    CustomAttrBoxed = 0x51,
+    Reserved        = 0x52,
+    CustomAttrField = 0x53,
+    CustomAttrProp  = 0x54,
+    CustomAttrEnum  = 0x55
 };
 
 /// \brief  Defines the basic structure of the #~ stream.
@@ -1144,10 +1194,209 @@ struct PeCliMetadataRowTypeSpec
 class PeCliMetadataTables
 {
 public:
-    PeCliMetadataTables()
-    {}
+    PeCliMetadataTables() = default;
 
     void load(BytesReader &reader);
+
+    const std::vector<PeCliMetadataTableId> &valid_table_types() const noexcept
+    {
+        return _valid_table_types;
+    }
+
+    const PeCliMetadataTablesStreamHeader header() const noexcept
+    {
+        return _header;
+    }
+
+    const std::vector<PeCliMetadataRowAssembly> *assembly_table() const noexcept
+    {
+        return _assembly_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowAssemblyOS> *assembly_os_table() const noexcept
+    {
+        return _assembly_os_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowAssemblyRef> *assembly_ref_table() const noexcept
+    {
+        return _assembly_ref_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowAssemblyProcessor> *assembly_processor_table() const noexcept
+    {
+        return _assembly_processor_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowAssemblyRefOS> *assembly_ref_os_table() const noexcept
+    {
+        return _assembly_ref_os_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowAssemblyRefProcessor> *assembly_ref_processor_table() const noexcept
+    {
+        return _assembly_ref_processor_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowClassLayout> *class_layout_table() const noexcept
+    {
+        return _class_layout_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowConstant> *constant_table() const noexcept
+    {
+        return _constant_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowCustomAttribute> *custom_attribute_table() const noexcept
+    {
+        return _custom_attribute_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowDeclSecurity> *decl_security_table() const noexcept
+    {
+        return _decl_security_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowEvent> *event_table() const noexcept
+    {
+        return _event_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowEventMap> *event_map_table() const noexcept
+    {
+        return _event_map_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowExportedType> *exported_type_table() const noexcept
+    {
+        return _exported_type_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowField> *field_table() const noexcept
+    {
+        return _field_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowFieldLayout> *field_layout_table() const noexcept
+    {
+        return _field_layout_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowFieldMarshal> *field_marshal_table() const noexcept
+    {
+        return _field_marshal_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowFieldRVA> *field_rva_table() const noexcept
+    {
+        return _field_rva_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowFile> *file_table() const noexcept
+    {
+        return _file_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowGenericParam> *generic_param_table() const noexcept
+    {
+        return _generic_param_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowGenericParamConstraint> *generic_param_constraint_table() const noexcept
+    {
+        return _generic_param_constraint_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowImplMap> *impl_map_table() const noexcept
+    {
+        return _impl_map_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowInterfaceImpl> *interface_impl_table() const noexcept
+    {
+        return _interface_impl_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowManifestResource> *manifest_resource_table() const noexcept
+    {
+        return _manifest_resource_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowMemberRef> *member_ref_table() const noexcept
+    {
+        return _member_ref_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowMethodDef> *method_def_table() const noexcept
+    {
+        return _method_def_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowMethodImpl> *method_impl_table() const noexcept
+    {
+        return _method_impl_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowMethodSemantics> *method_semantics_table() const noexcept
+    {
+        return _method_semantics_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowMethodSpec> *method_spec_table() const noexcept
+    {
+        return _method_spec_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowModule> *module_table() const noexcept
+    {
+        return _module_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowModuleRef> *module_ref_table() const noexcept
+    {
+        return _module_ref_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowNestedClass> *nested_class_table() const noexcept
+    {
+        return _nested_class_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowParam> *param_table() const noexcept
+    {
+        return _param_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowProperty> *property_table() const noexcept
+    {
+        return _property_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowPropertyMap> *property_map_table() const noexcept
+    {
+        return _property_map_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowStandAloneSig> *standalone_sig_table() const noexcept
+    {
+        return _standalone_sig_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowTypeDef> *type_def_table() const noexcept
+    {
+        return _type_def_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowTypeRef> *type_ref_table() const noexcept
+    {
+        return _type_ref_table.get();
+    }
+
+    const std::vector<PeCliMetadataRowTypeSpec> *type_spec_table() const noexcept
+    {
+        return _type_spec_table.get();
+    }
 
 private:
     size_t read_index(BytesReader &reader, uint32_t &ndx, bool wide)
@@ -1188,7 +1437,7 @@ private:
     // A std::unique_ptr for each table type. Null pointers indicate the table does not exist.
     std::unique_ptr<std::vector<PeCliMetadataRowAssembly>>              _assembly_table;
     std::unique_ptr<std::vector<PeCliMetadataRowAssemblyOS>>            _assembly_os_table;
-    std::unique_ptr<std::vector<PeCliMetadataRowAssemblyProcessor>>     _assembly_processor;
+    std::unique_ptr<std::vector<PeCliMetadataRowAssemblyProcessor>>     _assembly_processor_table;
     std::unique_ptr<std::vector<PeCliMetadataRowAssemblyRef>>           _assembly_ref_table;
     std::unique_ptr<std::vector<PeCliMetadataRowAssemblyRefOS>>         _assembly_ref_os_table;
     std::unique_ptr<std::vector<PeCliMetadataRowAssemblyRefProcessor>>  _assembly_ref_processor_table;
@@ -1220,7 +1469,7 @@ private:
     std::unique_ptr<std::vector<PeCliMetadataRowParam>>                 _param_table;
     std::unique_ptr<std::vector<PeCliMetadataRowProperty>>              _property_table;
     std::unique_ptr<std::vector<PeCliMetadataRowPropertyMap>>           _property_map_table;
-    std::unique_ptr<std::vector<PeCliMetadataRowStandAloneSig>>         _stand_alone_sig_table;
+    std::unique_ptr<std::vector<PeCliMetadataRowStandAloneSig>>         _standalone_sig_table;
     std::unique_ptr<std::vector<PeCliMetadataRowTypeDef>>               _type_def_table;
     std::unique_ptr<std::vector<PeCliMetadataRowTypeRef>>               _type_ref_table;
     std::unique_ptr<std::vector<PeCliMetadataRowTypeSpec>>              _type_spec_table;
@@ -1263,9 +1512,9 @@ public:
 
     void load(std::istream &stream, LoadOptions::Options options);
 
-    const PeCliMetadataHeader *metadata_header() const noexcept
+    const PeCliMetadataHeader &header() const noexcept
     {
-        return _metadata_header.get();
+        return _metadata_header;
     }
 
     const std::vector<PeCliStreamHeader> &stream_headers() const noexcept
@@ -1278,20 +1527,25 @@ public:
         return _streams;
     }
 
-    const std::vector<uint8_t> &get_stream(const std::string &stream_name) const
+    /// \brief  Return a pointer to a std::vector of \c uint8_t bytes containing
+    ///         the content of the specified CLI metadata head stream, or nullptr
+    ///         if the stream was not found.
+    const std::vector<uint8_t> *get_stream(const std::string &stream_name) const
     {
         static const std::vector<uint8_t> empty;
 
-        if (metadata_header())
+        for (uint32_t i = 0; i < header().stream_count; ++i)
         {
-            for (uint32_t i = 0; i < metadata_header()->stream_count; ++i)
-            {
-                if (stream_headers()[i].name == stream_name)
-                    return streams()[i];
-            }
+            if (stream_headers()[i].name == stream_name)
+                return &(streams()[i]);
         }
 
-        return empty;
+        return nullptr;
+    }
+
+    bool has_streams() const noexcept
+    {
+        return header().stream_count == streams().size();
     }
 
     /// \brief  Return a vector of strings as contained in the CLI \#Strings stream.
@@ -1306,10 +1560,23 @@ public:
     /// \brief  Return a vector of Guid structures as contained in the CLI \#GUID stream.
     std::vector<Guid> get_guid_heap_guids() const;
 
+    /// \brief  Retrieve a string from the \#Strings heap.
+    /// \param index    Index of the string to retrieve.
+    std::string get_string(uint32_t index) const;
+
+    /// \brief  Retrieve a GUID from the \#GUID heap.
+    /// \param index    Index of the string to retrieve. This is a 1-based index.
+    Guid get_guid(uint32_t index) const;
+
     /// \brief  Return a raw pointer to a PeCLiMetadataTables structure containing the parsed CLI \#~ stream.
     const PeCliMetadataTables *metadata_tables() const
     {
         return _tables.get();
+    }
+
+    bool has_tables() const noexcept
+    {
+        return _tables != nullptr;
     }
 
     PeCliMetadataTableIndex decode_index(PeCliEncodedIndexType type, uint32_t index) const;
@@ -1317,7 +1584,7 @@ public:
 private:
     void load_metadata_tables();
 
-    std::unique_ptr<PeCliMetadataHeader>    _metadata_header;
+    PeCliMetadataHeader                     _metadata_header;
     std::vector<PeCliStreamHeader>          _stream_headers;
     std::vector<std::vector<uint8_t>>       _streams;   // all metadata streams
     std::unique_ptr<PeCliMetadataTables>    _tables;    // from the #~ stream
@@ -1341,13 +1608,6 @@ public:
     /// \brief  Load the CLI information.
     void load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options);
 
-    /// \brief  Get a pointer to the CLI metadata, if any.
-    ///         This function returns the null pointer if no metadata was loaded.
-    const PeCliMetadata *metadata()
-    {
-        return _metadata.get();
-    }
-
     /// \brief  Return the file offset from which the CLI data was read.
     size_t file_offset() const noexcept
     {
@@ -1358,6 +1618,25 @@ public:
     const PeSection &section() const noexcept
     {
         return _section;
+    }
+
+    /// \brief  Return a reference to the CLI header.
+    const PeCliHeader &header() const noexcept
+    {
+        return _cli_header;
+    }
+
+    /// \brief  Get a pointer to the CLI metadata, if any.
+    ///         This function returns the null pointer if no metadata was loaded.
+    const PeCliMetadata *metadata() const noexcept
+    {
+        return _metadata.get();
+    }
+
+    /// \brief  Return \c true if metadata is present or was loaded, \c false otherwise.
+    bool has_metadata() const noexcept
+    {
+        return _metadata != nullptr;
     }
 
 private:

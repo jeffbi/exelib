@@ -79,18 +79,17 @@ void PeCliMetadata::load(std::istream &stream, LoadOptions::Options options)
 {
     auto    metadata_header_pos{stream.tellg()};
 
-    _metadata_header = std::make_unique<PeCliMetadataHeader>();
-    read(stream, _metadata_header->signature);
-    read(stream, _metadata_header->major_version);
-    read(stream, _metadata_header->minor_version);
-    read(stream, _metadata_header->reserved);
-    _metadata_header->version = read_length_and_string(stream);
-    read(stream, _metadata_header->flags);
-    read(stream, _metadata_header->stream_count);
+    read(stream, _metadata_header.signature);
+    read(stream, _metadata_header.major_version);
+    read(stream, _metadata_header.minor_version);
+    read(stream, _metadata_header.reserved);
+    _metadata_header.version = read_length_and_string(stream);
+    read(stream, _metadata_header.flags);
+    read(stream, _metadata_header.stream_count);
 
     // Load the metadata stream information
-    _stream_headers.reserve(_metadata_header->stream_count);
-    for (uint16_t i = 0; i < _metadata_header->stream_count; ++i)
+    _stream_headers.reserve(_metadata_header.stream_count);
+    for (uint16_t i = 0; i < _metadata_header.stream_count; ++i)
     {
         PeCliStreamHeader   header;
 
@@ -105,8 +104,8 @@ void PeCliMetadata::load(std::istream &stream, LoadOptions::Options options)
     {
         // Load the metadata streams.
         // There are member functions to interpret the #Strings, #US, #GUID, and #~ streams.
-        _streams.reserve(_metadata_header->stream_count);
-        for (uint16_t i = 0; i < _metadata_header->stream_count; ++i)
+        _streams.reserve(_metadata_header.stream_count);
+        for (uint16_t i = 0; i < _metadata_header.stream_count; ++i)
         {
             std::vector<uint8_t>    stream_bytes(_stream_headers[i].size);
 
@@ -125,14 +124,12 @@ void PeCliMetadata::load(std::istream &stream, LoadOptions::Options options)
 std::vector<std::string> PeCliMetadata::get_strings_heap_strings() const
 {
     std::vector<std::string>    rv;
-    const auto                 &bytes{get_stream("#Strings")};
+    const auto                 *pstream{get_stream("#Strings")};
 
-    if (bytes.size())
+    if (pstream && pstream->size())
     {
+        const auto &bytes{*pstream};
         size_t  bytes_read{0};
-
-        // ignore the first byte
-        ++bytes_read;
 
         std::string str;
         while (bytes_read < bytes.size())
@@ -154,13 +151,49 @@ std::vector<std::string> PeCliMetadata::get_strings_heap_strings() const
     return rv;
 }
 
+std::string PeCliMetadata::get_string(uint32_t index) const
+{
+    const auto *pstream{get_stream("#Strings")};
+
+    if (pstream)
+    {
+        const auto &bytes{*pstream};
+
+        return {reinterpret_cast<const char *>(&bytes[index])};
+    }
+
+    return {};
+}
+
+
+Guid PeCliMetadata::get_guid(uint32_t index) const
+{
+    Guid        guid{0};
+    const auto *pstream{get_stream("#GUID")};
+
+    if (pstream)
+    {
+        BytesReader reader{*pstream};
+
+        reader.seek(index - 1);
+
+        reader.read(guid.data1);
+        reader.read(guid.data2);
+        reader.read(guid.data3);
+        reader.read(guid.data4, sizeof(guid.data4));
+    }
+
+    return guid;
+}
+
 std::vector<std::u16string> PeCliMetadata::get_us_heap_strings() const
 {
     std::vector<std::u16string> rv;
-    const auto                 &bytes{get_stream("#US")};
+    const auto                 *pstream{get_stream("#US")};
 
-    if (bytes.size())
+    if (pstream && pstream->size())
     {
+        const auto &bytes{*pstream};
         size_t          bytes_read{0};
         std::u16string  str;
 
@@ -209,10 +242,12 @@ std::vector<std::u16string> PeCliMetadata::get_us_heap_strings() const
 std::vector<std::vector<uint8_t>> PeCliMetadata::get_blob_heap_blobs() const
 {
     std::vector<std::vector<uint8_t>>   rv;
-    const auto                         &bytes{get_stream("#Blob")};
+    const auto                         *pstream{get_stream("#Blob")};
+    //const auto                         &bytes{get_stream("#Blob")};
 
-    if (bytes.size())
+    if (pstream && pstream->size())
     {
+        const auto             &bytes{*pstream};
         size_t                  bytes_read{0};
         std::vector<uint8_t>    vec;
 
@@ -238,21 +273,26 @@ std::vector<std::vector<uint8_t>> PeCliMetadata::get_blob_heap_blobs() const
 
 std::vector<Guid> PeCliMetadata::get_guid_heap_guids() const
 {
-    BytesReader         reader{get_stream("#GUID")};
-    size_t              num_guids{reader.size() / sizeof(Guid)};
     std::vector<Guid>   rv;
+    const auto         *pstream{get_stream("#GUID")};
 
-    rv.reserve(num_guids);
-    for (size_t i = 0; i < num_guids; ++i)
+    if (pstream)
     {
-        Guid    guid;
+        BytesReader reader{*pstream};
+        size_t      num_guids{reader.size() / sizeof(Guid)};
 
-        reader.read(guid.data1);
-        reader.read(guid.data2);
-        reader.read(guid.data3);
-        reader.read(guid.data4, sizeof(guid.data4));
+        rv.reserve(num_guids);
+        for (size_t i = 0; i < num_guids; ++i)
+        {
+            Guid    guid;
 
-        rv.push_back(guid);
+            reader.read(guid.data1);
+            reader.read(guid.data2);
+            reader.read(guid.data3);
+            reader.read(guid.data4, sizeof(guid.data4));
+
+            rv.push_back(guid);
+        }
     }
 
     return rv;
@@ -262,12 +302,17 @@ void PeCliMetadata::load_metadata_tables()
 {
     if (!_tables)
     {
-        BytesReader reader{get_stream("#~")};
+        const auto *pstream{get_stream("#~")};
 
-        if (reader.size())
+        if (pstream)
         {
-            _tables = std::make_unique<PeCliMetadataTables>();
-            _tables->load(reader);
+            BytesReader reader{*pstream};
+
+            if (reader.size())
+            {
+                _tables = std::make_unique<PeCliMetadataTables>();
+                _tables->load(reader);
+            }
         }
     }
 }
@@ -561,15 +606,15 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::AssemblyProcessor:
-                _assembly_processor = std::make_unique<std::vector<PeCliMetadataRowAssemblyProcessor>>();
-                _assembly_processor->reserve(row_count);
+                _assembly_processor_table = std::make_unique<std::vector<PeCliMetadataRowAssemblyProcessor>>();
+                _assembly_processor_table->reserve(row_count);
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowAssemblyProcessor   row;
                     reader.read(row.processor);
 
-                    _assembly_processor->push_back(row);
+                    _assembly_processor_table->push_back(row);
                 }
                 break;
             case PeCliMetadataTableId::AssemblyRef:
@@ -1038,15 +1083,15 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 }
                 break;
             case PeCliMetadataTableId::StandAloneSig:
-                _stand_alone_sig_table = std::make_unique<std::vector<PeCliMetadataRowStandAloneSig>>();
-                _stand_alone_sig_table->reserve(row_count);
+                _standalone_sig_table = std::make_unique<std::vector<PeCliMetadataRowStandAloneSig>>();
+                _standalone_sig_table->reserve(row_count);
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowStandAloneSig   row;
                     read_blob_heap_index(reader, row.signature);
 
-                    _stand_alone_sig_table->push_back(row);
+                    _standalone_sig_table->push_back(row);
                 }
                 break;
             case PeCliMetadataTableId::TypeDef:

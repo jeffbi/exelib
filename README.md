@@ -51,9 +51,9 @@ sources to generate documentation.
 
 ## State of the Library
 The library is currently able to load information from old MZ and from NE-style
-executables. It is also able to load the fist header data from PE Portable
-Executable files. More work on PE executables is underway now and should
-be available in the near future.
+executables. It is also able to load quite a bit of the data in a PE file,
+including any CLI (.NET) metadata. More work on PE executables is underway
+now and should be available in the near future.
 
 ## The Samples
 There are two sample programs provided, `exedump` and `fntextract`.

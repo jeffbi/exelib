@@ -13,12 +13,8 @@
 
 // exelib headers
 #include <ExeInfo.h>
-#include <MZExe.h>
-#include <NEExe.h>
-#include <PEExe.h>
 
 #include "HexVal.h"
-#include "LoadOptions.h"
 
 
 void dump_ne_info(const NeExeInfo &info, std::ostream &outstream);  // in nedump.cpp

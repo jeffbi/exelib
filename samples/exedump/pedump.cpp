@@ -149,7 +149,7 @@ void dump_header(const PeImageFileHeader &header, std::ostream &outstream)
 
     // list characteristics
     for (const auto &pair : characteristics)
-        if (header.characteristics & static_cast<std::underlying_type<PeImageFileHeader::MachineType>::type>(pair.first))
+        if (header.characteristics & static_cast<std::underlying_type<PeImageFileHeader::Characteristics>::type>(pair.first))
             outstream << pair.second << ' ';
 
     outstream << '\n';
@@ -1149,8 +1149,8 @@ void dump_interface_impl_table(const std::vector<PeCliMetadataRowInterfaceImpl> 
         outstream << "  InterfaceImpl [" << count++ << "]\n";
         outstream << "    Class:                0x" << HexVal{entry.class_};
         outstream << " (Index " << entry.class_ << " into the TypeDef table)\n";
-        outstream << "    Interface:            0x" << HexVal{entry.interface};
-        PeCliMetadataTableIndex table_index{metadata.decode_index(PeCliEncodedIndexType::TypeDefOrRef, entry.interface)};
+        outstream << "    Interface:            0x" << HexVal{entry.interface_};
+        PeCliMetadataTableIndex table_index{metadata.decode_index(PeCliEncodedIndexType::TypeDefOrRef, entry.interface_)};
         outstream << " (index " << table_index.index << " into " << get_table_type_name(table_index.table_id) << " table)\n";
     }
     outstream << std::endl;

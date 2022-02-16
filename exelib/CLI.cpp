@@ -907,7 +907,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowInterfaceImpl   row;
                     read_index(reader, row.class_, needs_wide_index(PeCliMetadataTableId::TypeDef));
-                    read_index(reader, row.interface, needs_wide_index_vec({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::TypeRef, PeCliMetadataTableId::TypeSpec}));
+                    read_index(reader, row.interface_, needs_wide_index_vec({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::TypeRef, PeCliMetadataTableId::TypeSpec}));
 
                     _interface_impl_table->push_back(row);
                 }

@@ -35,7 +35,7 @@ struct PeImageFileHeader
     uint16_t	target_machine;			///< Number that identifies the type of target machine; see #MachineType enum
     uint16_t	num_sections;			///< Number of sections in the Section Table
     uint32_t	timestamp;				///< Unix-style timestamp indicating when the file was created.
-    uint32_t	symbol_table_offset;	///< Offset of the Symbol Table; zero indicats no symbol table is present
+    uint32_t	symbol_table_offset;	///< Offset of the Symbol Table; zero indicates no symbol table is present
     uint32_t	num_symbols;			///< Number of entries in the Symbol Table
     uint16_t	optional_header_size;	///< Size of the optional header; will be zero for an object file
     uint16_t	characteristics;		///< Flags indicating the characteristics of the file
@@ -63,6 +63,7 @@ struct PeImageFileHeader
         BytesReversedHI	        = 0x8000    ///< Big endian: the MSB precedes the LSB in memory. This flag is deprecated and should be zero.
     };
 
+    /// \brief  Defines values for use in the \c target_machine member of the \c PeImageFileHeader structure.
     enum class MachineType : uint16_t
     {
         Unknown     = 0x0000,   ///< The contents of this field are assumed to be applicable to any machine type
@@ -93,7 +94,7 @@ struct PeImageFileHeader
     };
 };
 
-/// \brief  Base class for the PE "Optional" headers.
+/// \brief  Base structure for the PE "Optional" headers.
 ///
 /// The PeOptionalHeader32 and PeOptionalHeader64 structures differ slightly
 /// but both begin with the members in this structure.
@@ -303,7 +304,7 @@ public:
     {}
 
     /// \brief  Construct a PeSection object from a #PeSectionHeader. No raw data is loaded.
-    PeSection(const PeSectionHeader &header)
+    explicit PeSection(const PeSectionHeader &header)
         :_header{header}
         , _data_loaded{false}
     {}
@@ -1054,7 +1055,8 @@ struct PeCliMetadataRowImplMap
 struct PeCliMetadataRowInterfaceImpl
 {
     uint32_t    class_;     // ("class", actually, but that's a reserved word) index into the TypeDef table
-    uint32_t    interface;  // index into the TypeDef, TypeRef, or TypeSpec table
+    uint32_t    interface_; // index into the TypeDef, TypeRef, or TypeSpec table
+                            // (Deep inside Windows.h is a #define interface, so we can't use that word either.)
 };
 
 // Row of ManifestResource table (0x28)

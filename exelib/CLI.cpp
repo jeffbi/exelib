@@ -83,7 +83,10 @@ void PeCliMetadata::load(std::istream &stream, LoadOptions::Options options)
     read(stream, _metadata_header.major_version);
     read(stream, _metadata_header.minor_version);
     read(stream, _metadata_header.reserved);
-    _metadata_header.version = read_length_and_string(stream);
+    // we're targeting C++14, so we can't use structured bindings
+    auto len_str = read_length_and_string(stream);
+    _metadata_header.version_length = len_str.first;
+    _metadata_header.version = len_str.second;
     read(stream, _metadata_header.flags);
     read(stream, _metadata_header.stream_count);
 
@@ -175,7 +178,7 @@ Guid PeCliMetadata::get_guid(uint32_t index) const
     {
         BytesReader reader{*pstream};
 
-        reader.seek(index - 1);
+        reader.seek((index - 1) * sizeof(Guid));
 
         reader.read(guid.data1);
         reader.read(guid.data2);
@@ -517,6 +520,89 @@ PeCliMetadataTableIndex PeCliMetadata::decode_index(PeCliEncodedIndexType type, 
     return rv;
 }
 
+bool PeCliMetadataTables::needs_wide_index(PeCliMetadataTableId id, uint32_t threshold /* = 65535 */)
+{
+    for (int i = 0; i < _valid_table_types.size(); ++i)
+        if (_valid_table_types[i] == id)
+            if (_header.row_counts[i] > threshold)
+                return true;
+
+    return false;
+}
+
+bool PeCliMetadataTables::needs_wide_index(const std::vector<PeCliMetadataTableId> &ids, uint32_t threshold)
+{
+    for (auto id : ids)
+        if (needs_wide_index(id, threshold))
+            return true;
+
+    return false;
+}
+
+bool PeCliMetadataTables::needs_wide_index(PeCliEncodedIndexType index_type)
+{
+    constexpr uint32_t  threshold{65536};
+
+    switch (index_type)
+    {
+        case PeCliEncodedIndexType::TypeDefOrRef:
+            return needs_wide_index({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::TypeRef, PeCliMetadataTableId::TypeSpec}, threshold >> 2);
+        case PeCliEncodedIndexType::HasConstant:
+            return needs_wide_index({PeCliMetadataTableId::Field, PeCliMetadataTableId::Param, PeCliMetadataTableId::Property}, threshold >> 2);
+        case PeCliEncodedIndexType::HasCustomAttribute:
+            return needs_wide_index({PeCliMetadataTableId::MethodDef,
+                                     PeCliMetadataTableId::Field,
+                                     PeCliMetadataTableId::TypeRef,
+                                     PeCliMetadataTableId::TypeDef,
+                                     PeCliMetadataTableId::Param,
+                                     PeCliMetadataTableId::InterfaceImpl,
+                                     PeCliMetadataTableId::MemberRef,
+                                     PeCliMetadataTableId::Module,
+                                     //PeCliMetadataTableId::Permission,    // page 274 of the ECMA-355 document *appears* to say that this is a table, but there is no other reference to it as a table.
+                                     PeCliMetadataTableId::Property,
+                                     PeCliMetadataTableId::Event,
+                                     PeCliMetadataTableId::StandAloneSig,
+                                     PeCliMetadataTableId::ModuleRef,
+                                     PeCliMetadataTableId::TypeSpec,
+                                     PeCliMetadataTableId::Assembly,
+                                     PeCliMetadataTableId::AssemblyRef,
+                                     PeCliMetadataTableId::File,
+                                     PeCliMetadataTableId::ExportedType,
+                                     PeCliMetadataTableId::ManifestResource,
+                                     PeCliMetadataTableId::GenericParam,
+                                     PeCliMetadataTableId::GenericParamConstraint,
+                                     PeCliMetadataTableId::MethodSpec
+                                    }, threshold >> 5);
+        case PeCliEncodedIndexType::HasFieldMarshall:
+            return needs_wide_index({PeCliMetadataTableId::Field, PeCliMetadataTableId::Param}, threshold >> 1);
+        case PeCliEncodedIndexType::HasDeclSecurity:
+            return needs_wide_index({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::Assembly}, threshold >> 2);
+        case PeCliEncodedIndexType::MemberRefParent:
+            return needs_wide_index({PeCliMetadataTableId::TypeDef,
+                                     PeCliMetadataTableId::TypeRef,
+                                     PeCliMetadataTableId::ModuleRef,
+                                     PeCliMetadataTableId::MethodDef,
+                                     PeCliMetadataTableId::TypeSpec
+                                    }, threshold >> 3);
+        case PeCliEncodedIndexType::HasSemantics:
+            return needs_wide_index({PeCliMetadataTableId::Event, PeCliMetadataTableId::Property}, threshold >> 1);
+        case PeCliEncodedIndexType::MethodDefOrRef:
+            return needs_wide_index({PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::MemberRef}, threshold >> 1);
+        case PeCliEncodedIndexType::MemberForwarded:
+            return needs_wide_index({PeCliMetadataTableId::Field, PeCliMetadataTableId::MethodDef}, threshold >> 1);
+        case PeCliEncodedIndexType::Implementation:
+            return needs_wide_index({PeCliMetadataTableId::File, PeCliMetadataTableId::AssemblyRef, PeCliMetadataTableId::ExportedType}, threshold >> 2);
+        case PeCliEncodedIndexType::CustomAttributeType:
+            return needs_wide_index({PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::MemberRef}, threshold >> 3);
+        case PeCliEncodedIndexType::ResolutionScope:
+            return needs_wide_index({PeCliMetadataTableId::Module, PeCliMetadataTableId::ModuleRef, PeCliMetadataTableId::AssemblyRef, PeCliMetadataTableId::TypeRef}, threshold >> 2);
+        case PeCliEncodedIndexType::TypeOrMethodDef:
+            return needs_wide_index({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::MethodDef}, threshold >> 1);
+    }
+
+    return false;
+}
+
 void PeCliMetadataTables::load(BytesReader &reader)
 {
     reader.read(_header.reserved0);
@@ -543,26 +629,6 @@ void PeCliMetadataTables::load(BytesReader &reader)
         _header.row_counts.push_back(row);
     }
 
-    auto    needs_wide_index = [this](PeCliMetadataTableId id)
-            {
-                constexpr uint32_t  threshold{65535};
-
-                for (int i = 0; i < this->_valid_table_types.size(); ++i)
-                    if (this->_valid_table_types[i] == id)
-                        if (this->_header.row_counts[i] > threshold)
-                            return true;
-
-                return false;
-            };
-    auto    needs_wide_index_vec = [this, &needs_wide_index](const std::vector<PeCliMetadataTableId> &ids)
-            {
-                //TODO: Not completely sure this is correct! Take a closer look at page 274 of the ECMA-335 spec.
-                for (auto id : ids)
-                    if (needs_wide_index(id))
-                        return true;
-
-                return false;
-            };
 
     // Following the header and the row counts are the tables themselves.
     for (int i = 0; i < _valid_table_types.size(); ++i)
@@ -647,7 +713,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     reader.read(row.os_platformID);
                     reader.read(row.os_major_version);
                     reader.read(row.os_minor_version);
-                    read_index(reader, row.assembly_ref, needs_wide_index(PeCliMetadataTableId::AssemblyRefOS));
+                    read_index(reader, row.assembly_ref, needs_wide_index(PeCliMetadataTableId::AssemblyRef));
 
                     _assembly_ref_os_table->push_back(row);
                 }
@@ -660,7 +726,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowAssemblyRefProcessor    row;
                     reader.read(row.processor);
-                    read_index(reader, row.assembly_ref, needs_wide_index(PeCliMetadataTableId::AssemblyRefProcessor));
+                    read_index(reader, row.assembly_ref, needs_wide_index(PeCliMetadataTableId::AssemblyRef));
 
                     _assembly_ref_processor_table->push_back(row);
                 }
@@ -674,7 +740,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     PeCliMetadataRowClassLayout row;
                     reader.read(row.packing_size);
                     reader.read(row.class_size);
-                    read_index(reader, row.parent, needs_wide_index(PeCliMetadataTableId::ClassLayout));
+                    read_index(reader, row.parent, needs_wide_index(PeCliMetadataTableId::TypeDef));
 
                     _class_layout_table->push_back(row);
                 }
@@ -689,8 +755,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     reader.read(row.type);
                     reader.read(row.padding);
 
-                    read_index(reader, row.parent, needs_wide_index_vec({PeCliMetadataTableId::Param, PeCliMetadataTableId::Field, PeCliMetadataTableId::Property}));
-
+                    read_index(reader, row.parent, needs_wide_index(PeCliEncodedIndexType::HasConstant));
                     read_blob_heap_index(reader, row.value);
 
                     _constant_table->push_back(row);
@@ -703,29 +768,8 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowCustomAttribute row;
-                    read_index(reader, row.parent, needs_wide_index_vec({PeCliMetadataTableId::MethodDef,
-                                                                         PeCliMetadataTableId::Field,
-                                                                         PeCliMetadataTableId::TypeRef,
-                                                                         PeCliMetadataTableId::TypeDef,
-                                                                         PeCliMetadataTableId::Param,
-                                                                         PeCliMetadataTableId::InterfaceImpl,
-                                                                         PeCliMetadataTableId::MemberRef,
-                                                                         PeCliMetadataTableId::Module,
-                                                                         //PeCliMetadataTableId::Permission,    // page 274 of the ECMA-355 document *appears* to say that this is a table, but there is no other reference to it as a table.
-                                                                         PeCliMetadataTableId::Property,
-                                                                         PeCliMetadataTableId::Event,
-                                                                         PeCliMetadataTableId::StandAloneSig,
-                                                                         PeCliMetadataTableId::ModuleRef,
-                                                                         PeCliMetadataTableId::TypeSpec,
-                                                                         PeCliMetadataTableId::Assembly,
-                                                                         PeCliMetadataTableId::AssemblyRef,
-                                                                         PeCliMetadataTableId::File,
-                                                                         PeCliMetadataTableId::ExportedType,
-                                                                         PeCliMetadataTableId::ManifestResource,
-                                                                         PeCliMetadataTableId::GenericParam,
-                                                                         PeCliMetadataTableId::GenericParamConstraint,
-                                                                         PeCliMetadataTableId::MethodSpec}));
-                    read_index(reader, row.type, needs_wide_index_vec({PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::MemberRef}));
+                    read_index(reader, row.parent, needs_wide_index(PeCliEncodedIndexType::HasCustomAttribute));
+                    read_index(reader, row.type, needs_wide_index(PeCliEncodedIndexType::CustomAttributeType));
                     read_blob_heap_index(reader, row.value);
 
                     _custom_attribute_table->push_back(row);
@@ -739,7 +783,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowDeclSecurity    row;
                     reader.read(row.action);
-                    read_index(reader, row.parent, needs_wide_index_vec({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::Assembly}));
+                    read_index(reader, row.parent, needs_wide_index(PeCliEncodedIndexType::HasDeclSecurity));
                     read_blob_heap_index(reader, row.permission_set);
 
                     _decl_security_table->push_back(row);
@@ -754,7 +798,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     PeCliMetadataRowEvent   row;
                     reader.read(row.event_flags);
                     read_strings_heap_index(reader, row.name);
-                    read_index(reader, row.event_type, needs_wide_index_vec({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::TypeRef, PeCliMetadataTableId::TypeSpec}));
+                    read_index(reader, row.event_type, needs_wide_index(PeCliEncodedIndexType::TypeDefOrRef));
 
                     _event_table->push_back(row);
                 }
@@ -783,7 +827,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     reader.read(row.typedef_id);    // This is an index, but it is always 4 bytes in size.
                     read_strings_heap_index(reader, row.type_name);
                     read_strings_heap_index(reader, row.type_namespace);
-                    read_index(reader, row.implementation, needs_wide_index_vec({PeCliMetadataTableId::File, PeCliMetadataTableId::ExportedType, PeCliMetadataTableId::AssemblyRef}));
+                    read_index(reader, row.implementation, needs_wide_index(PeCliEncodedIndexType::Implementation));
 
                     _exported_type_table->push_back(row);
                 }
@@ -822,7 +866,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowFieldMarshal    row;
-                    read_index(reader, row.parent, needs_wide_index_vec({PeCliMetadataTableId::Field, PeCliMetadataTableId::Param}));
+                    read_index(reader, row.parent, needs_wide_index(PeCliEncodedIndexType::HasFieldMarshall));
                     read_blob_heap_index(reader, row.native_type);
 
                     _field_marshal_table->push_back(row);
@@ -864,7 +908,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     PeCliMetadataRowGenericParam    row;
                     reader.read(row.number);
                     reader.read(row.flags);
-                    read_index(reader, row.owner, needs_wide_index_vec({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::MethodDef}));
+                    read_index(reader, row.owner, needs_wide_index(PeCliEncodedIndexType::TypeOrMethodDef));
                     read_strings_heap_index(reader, row.name);
 
                     _generic_param_table->push_back(row);
@@ -878,7 +922,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowGenericParamConstraint  row;
                     read_index(reader, row.owner, needs_wide_index(PeCliMetadataTableId::GenericParam));
-                    read_index(reader, row.constraint, needs_wide_index_vec({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::TypeRef, PeCliMetadataTableId::TypeSpec}));
+                    read_index(reader, row.constraint, needs_wide_index(PeCliEncodedIndexType::TypeDefOrRef));
 
                     _generic_param_constraint_table->push_back(row);
                 }
@@ -891,7 +935,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowImplMap row;
                     reader.read(row.mapping_flags);
-                    read_index(reader, row.member_forwarded, needs_wide_index_vec({PeCliMetadataTableId::Field, PeCliMetadataTableId::MethodDef}));
+                    read_index(reader, row.member_forwarded, needs_wide_index(PeCliEncodedIndexType::MemberForwarded));
                     read_strings_heap_index(reader, row.import_name);
                     read_index(reader, row.import_scope, needs_wide_index(PeCliMetadataTableId::ModuleRef));
 
@@ -907,7 +951,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowInterfaceImpl   row;
                     read_index(reader, row.class_, needs_wide_index(PeCliMetadataTableId::TypeDef));
-                    read_index(reader, row.interface_, needs_wide_index_vec({PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::TypeRef, PeCliMetadataTableId::TypeSpec}));
+                    read_index(reader, row.interface_, needs_wide_index(PeCliEncodedIndexType::TypeDefOrRef));
 
                     _interface_impl_table->push_back(row);
                 }
@@ -922,7 +966,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     reader.read(row.offset);
                     reader.read(row.flags);
                     read_strings_heap_index(reader, row.name);
-                    read_index(reader, row.implementation, needs_wide_index_vec({PeCliMetadataTableId::File, PeCliMetadataTableId::AssemblyRef}));
+                    read_index(reader, row.implementation, needs_wide_index(PeCliEncodedIndexType::Implementation));
 
                     _manifest_resource_table->push_back(row);
                 }
@@ -934,7 +978,8 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowMemberRef   row;
-                    read_index(reader, row.class_, needs_wide_index_vec({PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::ModuleRef, PeCliMetadataTableId::TypeDef, PeCliMetadataTableId::TypeRef, PeCliMetadataTableId::TypeSpec}));
+                    read_index(reader, row.class_, needs_wide_index(PeCliEncodedIndexType::MemberRefParent));
+                    //read_index(reader, row.class_, true);
                     read_strings_heap_index(reader, row.name);
                     read_blob_heap_index(reader, row.signature);
 
@@ -966,8 +1011,8 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowMethodImpl  row;
                     read_index(reader, row.class_, needs_wide_index(PeCliMetadataTableId::TypeDef));
-                    read_index(reader, row.method_body, needs_wide_index_vec({PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::MemberRef}));
-                    read_index(reader, row.method_declaration, needs_wide_index_vec({PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::MemberRef}));
+                    read_index(reader, row.method_body, needs_wide_index(PeCliEncodedIndexType::MethodDefOrRef));
+                    read_index(reader, row.method_declaration, needs_wide_index(PeCliEncodedIndexType::MethodDefOrRef));
 
                     _method_impl_table->push_back(row);
                 }
@@ -981,7 +1026,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     PeCliMetadataRowMethodSemantics row;
                     reader.read(row.semantics);
                     read_index(reader, row.method, needs_wide_index(PeCliMetadataTableId::MethodDef));
-                    read_index(reader, row.association, needs_wide_index_vec({PeCliMetadataTableId::Event, PeCliMetadataTableId::Property}));
+                    read_index(reader, row.association, needs_wide_index(PeCliEncodedIndexType::HasSemantics));
 
                     _method_semantics_table->push_back(row);
                 }
@@ -993,7 +1038,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowMethodSpec  row;
-                    read_index(reader, row.method, needs_wide_index_vec({PeCliMetadataTableId::MethodDef, PeCliMetadataTableId::MemberRef}));
+                    read_index(reader, row.method, needs_wide_index(PeCliEncodedIndexType::MethodDefOrRef));
                     read_blob_heap_index(reader, row.instantiation);
 
                     _method_spec_table->push_back(row);
@@ -1104,7 +1149,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                     reader.read(row.flags);
                     read_strings_heap_index(reader, row.type_name);
                     read_strings_heap_index(reader, row.type_namespace);
-                    read_index(reader, row.extends, needs_wide_index_vec({PeCliMetadataTableId::TypeDef}));
+                    read_index(reader, row.extends, needs_wide_index(PeCliEncodedIndexType::TypeDefOrRef));
                     read_index(reader, row.field_list, needs_wide_index(PeCliMetadataTableId::Field));
                     read_index(reader, row.method_list, needs_wide_index(PeCliMetadataTableId::MethodDef));
 
@@ -1118,7 +1163,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
                     PeCliMetadataRowTypeRef row;
-                    read_index(reader, row.resolution_scope, needs_wide_index_vec({PeCliMetadataTableId::Module, PeCliMetadataTableId::ModuleRef, PeCliMetadataTableId::AssemblyRef, PeCliMetadataTableId::TypeRef}));
+                    read_index(reader, row.resolution_scope, needs_wide_index(PeCliEncodedIndexType::ResolutionScope));
                     read_strings_heap_index(reader, row.type_name);
                     read_strings_heap_index(reader, row.type_namespace);
 

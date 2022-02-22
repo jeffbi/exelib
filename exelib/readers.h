@@ -10,6 +10,8 @@
 
 #include <istream>
 #include <vector>
+#include <utility>
+
 
 /// \brief  Read binary data from an input stream into various primitive types.
 /// \param stream       A reference to a std::istream from which to read bytes.
@@ -98,13 +100,13 @@ inline std::string read_string(std::istream &stream, uint32_t byte_count)
 ///         The length is assumed to be a 32-bit unsigned integer.
 /// \param stream   A reference to an std::istream from which to read the string.
 /// \return An std::string object containing the read characters.
-inline std::string read_length_and_string(std::istream &stream)
+inline std::pair<uint32_t, std::string> read_length_and_string(std::istream &stream)
 {
     uint32_t    byte_count;
 
     read(stream, byte_count);
 
-    return read_string(stream, byte_count);
+    return {byte_count, read_string(stream, byte_count)};
 }
 
 

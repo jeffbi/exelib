@@ -758,6 +758,7 @@ struct PeCliMetadataHeader
     uint16_t    major_version;
     uint16_t    minor_version;
     uint32_t    reserved;
+    uint32_t    version_length;
     std::string version;
     uint16_t    flags;
     uint16_t    stream_count;
@@ -961,7 +962,7 @@ struct PeCliMetadataRowDeclSecurity
 {
     uint16_t    action;
     uint32_t    parent;         // index into the TypeDef, MethodDef, or Assembly table
-    uint32_t    permission_set; // index into the Blob heap
+    uint32_t    permission_set; // index into the #Blob heap
 };
 
 // Row of EventMap table (0x12)
@@ -1115,15 +1116,15 @@ struct PeCliMetadataRowModule
 {
     uint16_t    generation;     // reserved, must be zero
     uint32_t    name;           // index into the #Strings heap
-    uint32_t    mv_id;          // index into the Guid heap; simply a Guid used to distinguish between two versions of the same module
-    uint32_t    enc_id;         // index into the Guid heap; reserved, must be zero
-    uint32_t    enc_base_id;    // index into the Guid heap; reserved, must be zero
+    uint32_t    mv_id;          // index into the #Guid heap; simply a Guid used to distinguish between two versions of the same module
+    uint32_t    enc_id;         // index into the #Guid heap; reserved, must be zero
+    uint32_t    enc_base_id;    // index into the #Guid heap; reserved, must be zero
 };
 
 // Row of ModuleRef table (0x1A)
 struct PeCliMetadataRowModuleRef
 {
-    uint32_t    name;   // index into the #Strings table
+    uint32_t    name;   // index into the #Strings heap
 };
 
 // Row of NestedClass table (0x29)
@@ -1192,6 +1193,24 @@ struct PeCliMetadataRowTypeSpec
 ///////////////////////////////////////
 
 
+/// \brief  Specifier for the type of encoded index found in CLI metadata table entries
+enum class PeCliEncodedIndexType
+{
+    TypeDefOrRef,
+    HasConstant,
+    HasCustomAttribute,
+    HasFieldMarshall,
+    HasDeclSecurity,
+    MemberRefParent,
+    HasSemantics,
+    MethodDefOrRef,
+    MemberForwarded,
+    Implementation,
+    CustomAttributeType,
+    ResolutionScope,
+    TypeOrMethodDef
+};
+
 /// \brief Deconstruction of the #~ stream
 class PeCliMetadataTables
 {
@@ -1205,7 +1224,7 @@ public:
         return _valid_table_types;
     }
 
-    const PeCliMetadataTablesStreamHeader header() const noexcept
+    const PeCliMetadataTablesStreamHeader &header() const noexcept
     {
         return _header;
     }
@@ -1433,6 +1452,11 @@ private:
     // It appears that none of the metadata tables contain indexes into the #US heap,
     // so there is no read_us_heap_index function.
 
+    bool needs_wide_index(PeCliMetadataTableId id, uint32_t threshold = 65535);
+    bool needs_wide_index(const std::vector<PeCliMetadataTableId> &ids, uint32_t threshold);
+    bool needs_wide_index(PeCliEncodedIndexType index_type);
+
+
     PeCliMetadataTablesStreamHeader     _header;
     std::vector<PeCliMetadataTableId>   _valid_table_types;
 
@@ -1477,24 +1501,6 @@ private:
     std::unique_ptr<std::vector<PeCliMetadataRowTypeSpec>>              _type_spec_table;
 };
 
-/// \brief  Specifier for the type of encoded index found in CLI metadata table entries
-enum class PeCliEncodedIndexType
-{
-    TypeDefOrRef,
-    HasConstant,
-    HasCustomAttribute,
-    HasFieldMarshall,
-    HasDeclSecurity,
-    MemberRefParent,
-    HasSemantics,
-    MethodDefOrRef,
-    MemberForwarded,
-    Implementation,
-    CustomAttributeType,
-    ResolutionScope,
-    TypeOrMethodDef
-};
-
 /// \brief  Structure returned by the PeCliMetadata::decode_index function.
 struct PeCliMetadataTableIndex
 {
@@ -1530,7 +1536,7 @@ public:
     }
 
     /// \brief  Return a pointer to a std::vector of \c uint8_t bytes containing
-    ///         the content of the specified CLI metadata head stream, or nullptr
+    ///         the content of the specified CLI metadata heap stream, or nullptr
     ///         if the stream was not found.
     const std::vector<uint8_t> *get_stream(const std::string &stream_name) const
     {
@@ -1567,7 +1573,7 @@ public:
     std::string get_string(uint32_t index) const;
 
     /// \brief  Retrieve a GUID from the \#GUID heap.
-    /// \param index    Index of the string to retrieve. This is a 1-based index.
+    /// \param index    Index of the GUID to retrieve. This is a 1-based index.
     Guid get_guid(uint32_t index) const;
 
     /// \brief  Return a raw pointer to a PeCLiMetadataTables structure containing the parsed CLI \#~ stream.

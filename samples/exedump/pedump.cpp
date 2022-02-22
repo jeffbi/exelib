@@ -1613,7 +1613,7 @@ void dump_cli_metadata_tables(const PeCli &cli, std::ostream &outstream)
         outstream << "    Major version: " << static_cast<uint16_t>(header.major_version) << '\n';
         outstream << "    Minor version: " << static_cast<uint16_t>(header.minor_version) << '\n';
         outstream << "    Heap sizes:    0x" << HexVal(header.heap_sizes) << '\n';      // bit field, not a count
-        outstream << "    reserved:      " << header.reserved1 << '\n';
+        outstream << "    reserved:      " << static_cast<uint16_t>(header.reserved1) << '\n';
         outstream << "    Valid tables:  0x" << HexVal(header.valid_tables) << '\n';    // bit field, not a count
         outstream << "    Sorted tables: 0x" << HexVal(header.sorted_tables) << '\n';   // bit field, not a count
 
@@ -1761,6 +1761,7 @@ void dump_cli_metadata(const PeCliMetadata &metadata, std::ostream &outstream)
     outstream << "    Major version:  " << header.major_version << '\n';
     outstream << "    Minor version:  " << header.minor_version << '\n';
     outstream << "    reserved:       " << header.reserved << '\n';
+    outstream << "    Version length: " << header.version_length << '\n';
     outstream << "    Version string: " << header.version << '\n';
     outstream << "    Flags:          0x" << HexVal(header.flags) << '\n';
     //TODO: Dump flags!!!
@@ -1834,8 +1835,8 @@ void dump_cli(const PeCli &cli, std::ostream &outstream)
     outstream << "        RVA:  0x" << HexVal(header.export_address_table_jumps.virtual_address) << '\n';
     outstream << "        Size:   " << std::setw(8) << header.export_address_table_jumps.size << '\n';
     outstream << "      Managed native header:\n";
-    outstream << "        RVA:  0x" << HexVal(header.metadata.virtual_address) << '\n';
-    outstream << "        Size:   " << std::setw(8) << header.metadata.size << '\n' << std::endl;
+    outstream << "        RVA:  0x" << HexVal(header.managed_native_header.virtual_address) << '\n';
+    outstream << "        Size:   " << std::setw(8) << header.managed_native_header.size << '\n' << std::endl;
 
     if (cli.has_metadata())
     {

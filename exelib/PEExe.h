@@ -289,7 +289,7 @@ class PeSection
 public:
     /// \brief  Construct a PeSection object from a #PeSectionHeader and a \c vector of raw data.
     ///         The raw data is moved into the new object.
-    PeSection(const PeSectionHeader &header, std::vector<uint8_t> &&data)
+    PeSection(const PeSectionHeader &header, std::vector<uint8_t> &&data) noexcept
         : _header{header}
         , _data{std::move(data)}
         , _data_loaded{true}
@@ -304,7 +304,7 @@ public:
     {}
 
     /// \brief  Construct a PeSection object from a #PeSectionHeader. No raw data is loaded.
-    explicit PeSection(const PeSectionHeader &header)
+    explicit PeSection(const PeSectionHeader &header) noexcept
         :_header{header}
         , _data_loaded{false}
     {}
@@ -507,17 +507,17 @@ enum class PeDebugType : uint32_t
 struct PeDebugCv
 {
     uint32_t    cv_signature;
-    uint32_t    age;
+    uint32_t    age{};
     std::string pdb_filepath;
 };
 struct PeDebugCvPDB20 : public PeDebugCv
 {
-    int32_t     offset;
-    uint32_t    signature;
+    int32_t     offset{};
+    uint32_t    signature{};
 };
 struct PeDebugCvPDB70 : public PeDebugCv
 {
-    Guid        signature;
+    Guid        signature{};
 };
 
 struct PeDebugMisc
@@ -567,7 +567,7 @@ struct PeDebugDirectoryEntry
         if (data_loaded && data.size() >= pdb20_size)
         {
             const auto *p{data.data()};
-            uint32_t    sig = *(reinterpret_cast<const uint32_t *>(p));
+            const auto  sig = *(reinterpret_cast<const uint32_t *>(p));
             p += sizeof(uint32_t);
 
             if (sig == SignaturePDB70)
@@ -592,7 +592,7 @@ struct PeDebugDirectoryEntry
                     p += sizeof(uint16_t);
                     rv->signature.data3 = *(reinterpret_cast<const uint16_t *>(p));
                     p += sizeof(uint16_t);
-                    std::memcpy(rv->signature.data4, p, sizeof(rv->signature.data4));
+                    std::copy(p, p + sizeof(rv->signature.data4), rv->signature.data4);
                     p += sizeof(rv->signature.data4);
 
                     rv->age = *(reinterpret_cast<const uint32_t *>(p));
@@ -642,7 +642,7 @@ struct PeDebugDirectoryEntry
             rv->length = *(reinterpret_cast<const uint32_t *>(p));
             p += sizeof(rv->length);
             rv->unicode = *p++;
-            std::memcpy(&rv->reserved[0], p, sizeof(rv->reserved));
+            std::copy(p, p + sizeof(rv->reserved), rv->reserved);
             p += sizeof(rv->reserved);
             auto start = data.begin() + (data.size() - (p - data.data()));
             rv->data.assign(start, data.end());
@@ -661,7 +661,7 @@ struct PeDebugDirectoryEntry
             auto rv{std::make_unique<PeDebugVcFeature>()};
             const auto *p{data.data()};
 
-            rv->pre_vc11= *(reinterpret_cast<const uint32_t *>(p));
+            rv->pre_vc11 = *(reinterpret_cast<const uint32_t *>(p));
             p += sizeof(rv->pre_vc11);
             rv->cpp = *(reinterpret_cast<const uint32_t *>(p));
             p += sizeof(rv->cpp);
@@ -1216,6 +1216,8 @@ class PeCliMetadataTables
 {
 public:
     PeCliMetadataTables() = default;
+    PeCliMetadataTables(const PeCliMetadataTables &) = delete;
+    PeCliMetadataTables &operator=(const PeCliMetadataTables &) = delete;
 
     void load(BytesReader &reader);
 
@@ -1544,8 +1546,8 @@ public:
 
         for (uint32_t i = 0; i < header().stream_count; ++i)
         {
-            if (stream_headers()[i].name == stream_name)
-                return &(streams()[i]);
+            if (stream_headers().at(i).name == stream_name)
+                return &(streams().at(i));
         }
 
         return nullptr;
@@ -1576,8 +1578,12 @@ public:
     /// \param index    Index of the GUID to retrieve. This is a 1-based index.
     Guid get_guid(uint32_t index) const;
 
+    /// \brief  Retrieve a blob from the \#Blob heap.
+    /// \param index    Index of the Blob to retrieve.
+    const std::vector<uint8_t> get_blob(uint32_t index) const;
+
     /// \brief  Return a raw pointer to a PeCLiMetadataTables structure containing the parsed CLI \#~ stream.
-    const PeCliMetadataTables *metadata_tables() const
+    const PeCliMetadataTables *metadata_tables() const noexcept
     {
         return _tables.get();
     }
@@ -1602,7 +1608,7 @@ private:
 class PeCli
 {
 public:
-    PeCli(size_t offset, const PeSection &section)
+    PeCli(std::streamoff offset, const PeSection &section) noexcept
       : _file_offset{offset},
         _section{section}
     {}
@@ -1617,7 +1623,7 @@ public:
     void load(std::istream &stream, const std::vector<PeSection> &sections, LoadOptions::Options options);
 
     /// \brief  Return the file offset from which the CLI data was read.
-    size_t file_offset() const noexcept
+    std::streamoff file_offset() const noexcept
     {
         return _file_offset;
     }
@@ -1648,9 +1654,9 @@ public:
     }
 
 private:
-    size_t                          _file_offset;
+    std::streamoff                  _file_offset;
     const PeSection                &_section;
-    PeCliHeader                     _cli_header;    // The CLI header
+    PeCliHeader                     _cli_header{};  // The CLI header
     std::unique_ptr<PeCliMetadata>  _metadata;      // The CLI metadata, if loaded;
 };
 
@@ -1678,6 +1684,9 @@ public:
     ///                         are to be loaded.
     ///
     PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::Options options);
+
+    PeExeInfo(const PeExeInfo &) = delete;
+    PeExeInfo &operator=(const PeExeInfo &) = delete;
 
     /// \brief  Return the file position of the PE header.
     size_t header_position() const noexcept
@@ -1775,7 +1784,7 @@ public:
     }
 
     /// \brief  Return a reference to the Debug Directory
-    const DebugDirectory debug_directory() const noexcept
+    const DebugDirectory &debug_directory() const noexcept
     {
         return _debug_directory;
     }
@@ -1806,7 +1815,7 @@ private:
 };
 
 
-inline const PeSection *find_section_by_rva(uint32_t rva, const std::vector<PeSection> &sections)
+inline const PeSection *find_section_by_rva(uint32_t rva, const std::vector<PeSection> &sections) noexcept
 {
     if (rva > 0)
     {
@@ -1826,9 +1835,9 @@ inline const PeSection *find_section_by_rva(uint32_t rva, const std::vector<PeSe
     return nullptr;
 }
 
-inline size_t get_file_offset(uint32_t rva, const PeSection &section)
+inline std::streamoff get_file_offset(uint32_t rva, const PeSection &section) noexcept
 {
-    return rva - section.virtual_address() + section.header().raw_data_position;
+    return static_cast<std::streamoff>(rva) - section.virtual_address() + section.header().raw_data_position;
 }
 
 #endif  //_EXELIB_PEEXE_H_

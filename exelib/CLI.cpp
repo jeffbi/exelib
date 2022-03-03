@@ -7,6 +7,7 @@
 #include <exception>
 #include <istream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "LoadOptions.h"
@@ -18,46 +19,89 @@ namespace {
 uint32_t get_blob_length(const std::vector<uint8_t> &bytes, size_t &bytes_read)
 {
     uint32_t    len{0};
-    uint8_t     c1{bytes[bytes_read++]};
+    uint8_t     b1{bytes[bytes_read++]};
 
-    if ((c1 & 0b11100000) == 0b11000000)
+    if ((b1 & 0b11100000) == 0b11000000)
     {
         // need four bytes for the length
-        uint8_t c2 = bytes[bytes_read++];
-        uint8_t c3 = bytes[bytes_read++];
-        uint8_t c4 = bytes[bytes_read++];
+        uint8_t b2 = bytes[bytes_read++];
+        uint8_t b3 = bytes[bytes_read++];
+        uint8_t b4 = bytes[bytes_read++];
 
-        len =    ((static_cast<uint32_t>(c1) & 0b00011111) << 24)
-                | (static_cast<uint32_t>(c2) << 16)
-                | (static_cast<uint32_t>(c3) << 8)
-                | (static_cast<uint32_t>(c4));
+        len =    ((static_cast<uint32_t>(b1) & 0b00011111) << 24)
+                | (static_cast<uint32_t>(b2) << 16)
+                | (static_cast<uint32_t>(b3) << 8)
+                | (static_cast<uint32_t>(b4));
 
     }
-    else if ((c1 & 0b11000000) == 0b10000000)
+    else if ((b1 & 0b11000000) == 0b10000000)
     {
         // need two bytes for the length
-        uint8_t c2 = bytes[bytes_read++];
+        uint8_t b2 = bytes[bytes_read++];
 
-        len = ((static_cast<uint32_t>(c1) & 0b00111111) << 8) | static_cast<uint32_t>(c2);
+        len = ((static_cast<uint32_t>(b1) & 0b00111111) << 8) | static_cast<uint32_t>(b2);
     }
-    else if ((c1 & 0b10000000) == 0b00000000)
+    else if ((b1 & 0b10000000) == 0b00000000)
     {
         // one byte does it
-        len = c1;
+        len = b1;
     }
     else
     {
         // should never get here!!!
-        throw std::runtime_error("Length in #US stream is invalid.");
+        throw std::runtime_error("Length in #US or #Blob stream is invalid.");
     }
 
     return len;
 }
 
-template<typename T>
-inline int count_set_bits(T value)
+// calculate the length of an entry in a #US or #Blob CLI metadata stream.
+// return a std::pair containing the length value and a pointer to the data
+// that follows the length byte(s).
+std::pair<uint32_t, const uint8_t *> get_blob_length(const uint8_t *ptr)
 {
-    int rv{0};
+    uint32_t    len{0};
+    uint8_t     b1{*ptr++};
+
+    if ((b1 & 0b11100000) == 0b11000000)
+    {
+        // need four bytes for the length
+        uint8_t b2 = *ptr++;
+        uint8_t b3 = *ptr++;
+        uint8_t b4 = *ptr++;
+
+        len =    ((static_cast<uint32_t>(b1) & 0b00011111) << 24)
+                | (static_cast<uint32_t>(b2) << 16)
+                | (static_cast<uint32_t>(b3) << 8)
+                | (static_cast<uint32_t>(b4));
+
+    }
+    else if ((b1 & 0b11000000) == 0b10000000)
+    {
+        // need two bytes for the length
+        uint8_t b2 = *ptr++;
+
+        len = ((static_cast<uint32_t>(b1) & 0b00111111) << 8) | static_cast<uint32_t>(b2);
+    }
+    else if ((b1 & 0b10000000) == 0b00000000)
+    {
+        // one byte does it
+        len = b1;
+    }
+    else
+    {
+        // should never get here!!!
+        throw std::runtime_error("Length in #US or #Blob stream is invalid.");
+    }
+
+    return {len, ptr};
+}
+
+
+template<typename T>
+inline unsigned count_set_bits(T value)
+{
+    unsigned rv{0};
 
     for (T i = 0; i < sizeof(T) * 8; ++i)
         if (value & (static_cast<T>(1) << i))
@@ -189,6 +233,27 @@ Guid PeCliMetadata::get_guid(uint32_t index) const
     return guid;
 }
 
+const std::vector<uint8_t> PeCliMetadata::get_blob(uint32_t index) const
+{
+    const auto  *pstream{get_stream("#Blob")};
+
+    if (pstream && pstream->size())
+    {
+        if (index >= pstream->size())
+            throw std::out_of_range("get_blob: index out of range.");
+
+        auto    pair{get_blob_length(pstream->data() + index)};
+        auto    len{pair.first};
+        auto    begin{pair.second};
+        auto    end{begin + len};
+
+        //return {std::vector<uint8_t>(begin, end)};
+        return {begin, end};
+    }
+
+    return {};
+}
+
 std::vector<std::u16string> PeCliMetadata::get_us_heap_strings() const
 {
     std::vector<std::u16string> rv;
@@ -196,7 +261,7 @@ std::vector<std::u16string> PeCliMetadata::get_us_heap_strings() const
 
     if (pstream && pstream->size())
     {
-        const auto &bytes{*pstream};
+        const auto     &bytes{*pstream};
         size_t          bytes_read{0};
         std::u16string  str;
 
@@ -246,7 +311,6 @@ std::vector<std::vector<uint8_t>> PeCliMetadata::get_blob_heap_blobs() const
 {
     std::vector<std::vector<uint8_t>>   rv;
     const auto                         *pstream{get_stream("#Blob")};
-    //const auto                         &bytes{get_stream("#Blob")};
 
     if (pstream && pstream->size())
     {
@@ -322,7 +386,7 @@ void PeCliMetadata::load_metadata_tables()
 
 PeCliMetadataTableIndex PeCliMetadata::decode_index(PeCliEncodedIndexType type, uint32_t index) const
 {
-    PeCliMetadataTableIndex rv;
+    PeCliMetadataTableIndex rv{};
 
     switch (type)
     {
@@ -383,7 +447,7 @@ PeCliMetadataTableIndex PeCliMetadata::decode_index(PeCliEncodedIndexType type, 
                                                         };
                 // ECMA-335 specifies 22 tables encoded into this type of index.
                 // However it includes number 8 as a "Permission" table, which
-                // does not exist anywhere else in the spec. For now it is a error.
+                // does not exist anywhere else in the spec. For now it is an error.
                 if (ndx > 21 || ndx == 8)
                     throw std::runtime_error("Invalid table type value encoded into 'HasCustomAttribute' index.");
                 rv.table_id = ids[ndx];
@@ -522,7 +586,7 @@ PeCliMetadataTableIndex PeCliMetadata::decode_index(PeCliEncodedIndexType type, 
 
 bool PeCliMetadataTables::needs_wide_index(PeCliMetadataTableId id, uint32_t threshold /* = 65535 */)
 {
-    for (int i = 0; i < _valid_table_types.size(); ++i)
+    for (size_t i = 0; i < _valid_table_types.size(); ++i)
         if (_valid_table_types[i] == id)
             if (_header.row_counts[i] > threshold)
                 return true;
@@ -613,8 +677,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
     reader.read(_header.valid_tables);
     reader.read(_header.sorted_tables);
 
-    int nValid{count_set_bits(_header.valid_tables)};
-    int nSorted{count_set_bits(_header.sorted_tables)};
+    unsigned nValid{count_set_bits(_header.valid_tables)};
 
     _valid_table_types.reserve(nValid);
     for (int i = 0; i < 64; ++i)
@@ -622,7 +685,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
             _valid_table_types.push_back(static_cast<PeCliMetadataTableId>(i));
 
     _header.row_counts.reserve(nValid);
-    for (int i = 0; i < nValid; ++i)
+    for (unsigned i = 0; i < nValid; ++i)
     {
         uint32_t    row;
         reader.read(row);
@@ -631,7 +694,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
 
     // Following the header and the row counts are the tables themselves.
-    for (int i = 0; i < _valid_table_types.size(); ++i)
+    for (size_t i = 0; i < _valid_table_types.size(); ++i)
     {
         uint32_t    row_count{_header.row_counts[i]};
 
@@ -643,7 +706,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowAssembly    row;
+                    PeCliMetadataRowAssembly    row{};
                     reader.read(row.hash_alg_id);
                     reader.read(row.major_version);
                     reader.read(row.minor_version);
@@ -663,7 +726,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowAssemblyOS  row;
+                    PeCliMetadataRowAssemblyOS  row{};
                     reader.read(row.os_platformID);
                     reader.read(row.os_major_version);
                     reader.read(row.os_minor_version);
@@ -677,7 +740,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowAssemblyProcessor   row;
+                    PeCliMetadataRowAssemblyProcessor   row{};
                     reader.read(row.processor);
 
                     _assembly_processor_table->push_back(row);
@@ -689,7 +752,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowAssemblyRef row;
+                    PeCliMetadataRowAssemblyRef row{};
                     reader.read(row.major_version);
                     reader.read(row.minor_version);
                     reader.read(row.build_number);
@@ -709,7 +772,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowAssemblyRefOS   row;
+                    PeCliMetadataRowAssemblyRefOS   row{};
                     reader.read(row.os_platformID);
                     reader.read(row.os_major_version);
                     reader.read(row.os_minor_version);
@@ -724,7 +787,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowAssemblyRefProcessor    row;
+                    PeCliMetadataRowAssemblyRefProcessor    row{};
                     reader.read(row.processor);
                     read_index(reader, row.assembly_ref, needs_wide_index(PeCliMetadataTableId::AssemblyRef));
 
@@ -737,7 +800,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowClassLayout row;
+                    PeCliMetadataRowClassLayout row{};
                     reader.read(row.packing_size);
                     reader.read(row.class_size);
                     read_index(reader, row.parent, needs_wide_index(PeCliMetadataTableId::TypeDef));
@@ -751,7 +814,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowConstant    row;
+                    PeCliMetadataRowConstant    row{};
                     reader.read(row.type);
                     reader.read(row.padding);
 
@@ -767,7 +830,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowCustomAttribute row;
+                    PeCliMetadataRowCustomAttribute row{};
                     read_index(reader, row.parent, needs_wide_index(PeCliEncodedIndexType::HasCustomAttribute));
                     read_index(reader, row.type, needs_wide_index(PeCliEncodedIndexType::CustomAttributeType));
                     read_blob_heap_index(reader, row.value);
@@ -781,7 +844,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowDeclSecurity    row;
+                    PeCliMetadataRowDeclSecurity    row{};
                     reader.read(row.action);
                     read_index(reader, row.parent, needs_wide_index(PeCliEncodedIndexType::HasDeclSecurity));
                     read_blob_heap_index(reader, row.permission_set);
@@ -795,7 +858,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowEvent   row;
+                    PeCliMetadataRowEvent   row{};
                     reader.read(row.event_flags);
                     read_strings_heap_index(reader, row.name);
                     read_index(reader, row.event_type, needs_wide_index(PeCliEncodedIndexType::TypeDefOrRef));
@@ -809,7 +872,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowEventMap  row;
+                    PeCliMetadataRowEventMap  row{};
                     read_index(reader, row.parent, needs_wide_index(PeCliMetadataTableId::TypeDef));
                     read_index(reader, row.event_list, needs_wide_index(PeCliMetadataTableId::Event));
 
@@ -822,7 +885,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowExportedType    row;
+                    PeCliMetadataRowExportedType    row{};
                     reader.read(row.flags);
                     reader.read(row.typedef_id);    // This is an index, but it is always 4 bytes in size.
                     read_strings_heap_index(reader, row.type_name);
@@ -838,7 +901,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowField   row;
+                    PeCliMetadataRowField   row{};
                     reader.read(row.flags);
                     read_strings_heap_index(reader, row.name);
                     read_blob_heap_index(reader, row.signature);
@@ -852,7 +915,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowFieldLayout row;
+                    PeCliMetadataRowFieldLayout row{};
                     reader.read(row.offset);
                     read_index(reader, row.field, needs_wide_index(PeCliMetadataTableId::Field));
 
@@ -865,7 +928,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowFieldMarshal    row;
+                    PeCliMetadataRowFieldMarshal    row{};
                     read_index(reader, row.parent, needs_wide_index(PeCliEncodedIndexType::HasFieldMarshall));
                     read_blob_heap_index(reader, row.native_type);
 
@@ -878,7 +941,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowFieldRVA    row;
+                    PeCliMetadataRowFieldRVA    row{};
                     reader.read(row.rva);
                     read_index(reader, row.field, needs_wide_index(PeCliMetadataTableId::Field));
 
@@ -891,7 +954,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowFile    row;
+                    PeCliMetadataRowFile    row{};
                     reader.read(row.flags);
                     read_strings_heap_index(reader, row.name);
                     read_blob_heap_index(reader, row.hash_value);
@@ -905,7 +968,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowGenericParam    row;
+                    PeCliMetadataRowGenericParam    row{};
                     reader.read(row.number);
                     reader.read(row.flags);
                     read_index(reader, row.owner, needs_wide_index(PeCliEncodedIndexType::TypeOrMethodDef));
@@ -920,7 +983,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowGenericParamConstraint  row;
+                    PeCliMetadataRowGenericParamConstraint  row{};
                     read_index(reader, row.owner, needs_wide_index(PeCliMetadataTableId::GenericParam));
                     read_index(reader, row.constraint, needs_wide_index(PeCliEncodedIndexType::TypeDefOrRef));
 
@@ -933,7 +996,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowImplMap row;
+                    PeCliMetadataRowImplMap row{};
                     reader.read(row.mapping_flags);
                     read_index(reader, row.member_forwarded, needs_wide_index(PeCliEncodedIndexType::MemberForwarded));
                     read_strings_heap_index(reader, row.import_name);
@@ -949,7 +1012,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowInterfaceImpl   row;
+                    PeCliMetadataRowInterfaceImpl   row{};
                     read_index(reader, row.class_, needs_wide_index(PeCliMetadataTableId::TypeDef));
                     read_index(reader, row.interface_, needs_wide_index(PeCliEncodedIndexType::TypeDefOrRef));
 
@@ -962,7 +1025,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowManifestResource  row;
+                    PeCliMetadataRowManifestResource  row{};
                     reader.read(row.offset);
                     reader.read(row.flags);
                     read_strings_heap_index(reader, row.name);
@@ -977,7 +1040,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowMemberRef   row;
+                    PeCliMetadataRowMemberRef   row{};
                     read_index(reader, row.class_, needs_wide_index(PeCliEncodedIndexType::MemberRefParent));
                     //read_index(reader, row.class_, true);
                     read_strings_heap_index(reader, row.name);
@@ -992,7 +1055,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowMethodDef   row;
+                    PeCliMetadataRowMethodDef   row{};
                     reader.read(row.rva);
                     reader.read(row.impl_flags);
                     reader.read(row.flags);
@@ -1009,7 +1072,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowMethodImpl  row;
+                    PeCliMetadataRowMethodImpl  row{};
                     read_index(reader, row.class_, needs_wide_index(PeCliMetadataTableId::TypeDef));
                     read_index(reader, row.method_body, needs_wide_index(PeCliEncodedIndexType::MethodDefOrRef));
                     read_index(reader, row.method_declaration, needs_wide_index(PeCliEncodedIndexType::MethodDefOrRef));
@@ -1023,7 +1086,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowMethodSemantics row;
+                    PeCliMetadataRowMethodSemantics row{};
                     reader.read(row.semantics);
                     read_index(reader, row.method, needs_wide_index(PeCliMetadataTableId::MethodDef));
                     read_index(reader, row.association, needs_wide_index(PeCliEncodedIndexType::HasSemantics));
@@ -1037,7 +1100,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowMethodSpec  row;
+                    PeCliMetadataRowMethodSpec  row{};
                     read_index(reader, row.method, needs_wide_index(PeCliEncodedIndexType::MethodDefOrRef));
                     read_blob_heap_index(reader, row.instantiation);
 
@@ -1050,7 +1113,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowModule  row;
+                    PeCliMetadataRowModule  row{};
                     reader.read(row.generation);
                     read_strings_heap_index(reader, row.name);
                     read_guid_heap_index(reader, row.mv_id);
@@ -1066,7 +1129,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowModuleRef   row;
+                    PeCliMetadataRowModuleRef   row{};
                     read_strings_heap_index(reader, row.name);
 
                     _module_ref_table->push_back(row);
@@ -1078,7 +1141,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowNestedClass row;
+                    PeCliMetadataRowNestedClass row{};
                     bool                        use_wide = needs_wide_index(PeCliMetadataTableId::TypeDef);
                     read_index(reader, row.nested_class, use_wide);
                     read_index(reader, row.enclosing_class, use_wide);
@@ -1092,7 +1155,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowParam   row;
+                    PeCliMetadataRowParam   row{};
                     reader.read(row.flags);
                     reader.read(row.sequence);
                     read_strings_heap_index(reader, row.name);
@@ -1106,7 +1169,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowProperty    row;
+                    PeCliMetadataRowProperty    row{};
                     reader.read(row.flags);
                     read_strings_heap_index(reader, row.name);
                     read_blob_heap_index(reader, row.type);
@@ -1120,7 +1183,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowPropertyMap row;
+                    PeCliMetadataRowPropertyMap row{};
                     read_index(reader, row.parent, needs_wide_index(PeCliMetadataTableId::TypeDef));
                     read_index(reader, row.property_list, needs_wide_index(PeCliMetadataTableId::Property));
 
@@ -1133,7 +1196,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowStandAloneSig   row;
+                    PeCliMetadataRowStandAloneSig   row{};
                     read_blob_heap_index(reader, row.signature);
 
                     _standalone_sig_table->push_back(row);
@@ -1145,7 +1208,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowTypeDef row;
+                    PeCliMetadataRowTypeDef row{};
                     reader.read(row.flags);
                     read_strings_heap_index(reader, row.type_name);
                     read_strings_heap_index(reader, row.type_namespace);
@@ -1162,7 +1225,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowTypeRef row;
+                    PeCliMetadataRowTypeRef row{};
                     read_index(reader, row.resolution_scope, needs_wide_index(PeCliEncodedIndexType::ResolutionScope));
                     read_strings_heap_index(reader, row.type_name);
                     read_strings_heap_index(reader, row.type_namespace);
@@ -1176,7 +1239,7 @@ void PeCliMetadataTables::load(BytesReader &reader)
 
                 for (uint32_t j = 0; j < row_count; ++j)
                 {
-                    PeCliMetadataRowTypeSpec    row;
+                    PeCliMetadataRowTypeSpec    row{};
                     read_blob_heap_index(reader, row.signature);
 
                     _type_spec_table->push_back(row);

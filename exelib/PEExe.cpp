@@ -239,42 +239,7 @@ PeExeInfo::PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::
     }
 }
 
-namespace { // this is temporary!!!
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint64_t &value)
-{
-    value = (static_cast<uint64_t>(vec[location++]))
-          | (static_cast<uint64_t>(vec[location++]) <<  8)
-          | (static_cast<uint64_t>(vec[location++]) << 16)
-          | (static_cast<uint64_t>(vec[location++]) << 24)
-          | (static_cast<uint64_t>(vec[location++]) << 32)
-          | (static_cast<uint64_t>(vec[location++]) << 40)
-          | (static_cast<uint64_t>(vec[location++]) << 48)
-          | (static_cast<uint64_t>(vec[location])   << 56);
-
-    return sizeof(value);
-}
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint32_t &value)
-{
-    value = (static_cast<uint32_t>(vec[location++]))
-          | (static_cast<uint32_t>(vec[location++]) <<  8)
-          | (static_cast<uint32_t>(vec[location++]) << 16)
-          | (static_cast<uint32_t>(vec[location])   << 24);
-
-    return sizeof(value);
-}
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint16_t &value)
-{
-    value = (static_cast<uint16_t>(vec[location++]))
-          | (static_cast<uint16_t>(vec[location]) <<  8);
-
-    return sizeof(value);
-}
-size_t read_bytes(const std::vector<uint8_t> &vec, size_t location, uint8_t &value)
-{
-    value = vec[location];
-
-    return sizeof(value);
-}
+namespace {
 
 template<typename T>
 inline int count_set_bits(T value)
@@ -471,21 +436,21 @@ void PeExeInfo::load_exports(std::istream &stream)
             // Load the Export Name Pointer Table, the Export Ordinal Table, and the Export Name Table
             if (exports_directory.num_name_pointers)
             {
-                auto pos = get_file_offset(exports_directory.name_pointer_rva, *section);
-                stream.seekg(pos);
+                auto loc = get_file_offset(exports_directory.name_pointer_rva, *section);
+                stream.seekg(loc);
                 _exports->name_pointer_table.resize(exports_directory.num_name_pointers);
-                stream.read(reinterpret_cast<char *>(_exports->name_pointer_table.data()), _exports->name_pointer_table.size() * sizeof(_exports->name_pointer_table[0]));
+                stream.read(reinterpret_cast<char *>(_exports->name_pointer_table.data()), static_cast<std::streamsize>(_exports->name_pointer_table.size() * sizeof(_exports->name_pointer_table[0])));
 
-                pos = get_file_offset(exports_directory.ordinal_table_rva, *section);
-                stream.seekg(pos);
+                loc = get_file_offset(exports_directory.ordinal_table_rva, *section);
+                stream.seekg(loc);
                 _exports->ordinal_table.resize(exports_directory.num_name_pointers);
-                stream.read(reinterpret_cast<char *>(_exports->ordinal_table.data()), _exports->ordinal_table.size() * sizeof(_exports->ordinal_table[0]));
+                stream.read(reinterpret_cast<char *>(_exports->ordinal_table.data()), static_cast<std::streamsize>(_exports->ordinal_table.size() * sizeof(_exports->ordinal_table[0])));
 
                 _exports->name_table.reserve(exports_directory.num_name_pointers);
-                for (auto rva : _exports->name_pointer_table)
+                for (auto rvaddr : _exports->name_pointer_table)
                 {
-                    pos = get_file_offset(rva, *section);
-                    stream.seekg(pos);
+                    loc = get_file_offset(rvaddr, *section);
+                    stream.seekg(loc);
                     _exports->name_table.emplace_back(read_sz_string(stream));
                 }
             }
@@ -531,12 +496,12 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                 _imports->push_back(entry);
             }
             // Load the DLL names
-            for (auto &&entry : *_imports)
+            for (auto &&imp : *_imports)
             {
-                stream.seekg(get_file_offset(entry.name_rva, *section));
-                entry.module_name = read_sz_string(stream);
+                stream.seekg(get_file_offset(imp.name_rva, *section));
+                imp.module_name = read_sz_string(stream);
 
-                stream.seekg(get_file_offset(entry.import_address_table_rva, *section));
+                stream.seekg(get_file_offset(imp.import_address_table_rva, *section));
                 while (true)
                 {
                     PeImportLookupEntry lookup_entry{0};
@@ -577,12 +542,12 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
 
                     if (lookup_entry.ord_name_flag == 0)
                     {
-                        auto here = stream.tellg();
+                        auto current_pos = stream.tellg();
                         stream.seekg(get_file_offset(lookup_entry.name_rva, *section));
                         read(stream, lookup_entry.hint);
                         lookup_entry.name = read_sz_string(stream);
 
-                        stream.seekg(here);
+                        stream.seekg(current_pos);
                     }
                     entry.lookup_table.push_back(lookup_entry);
                 }
@@ -641,7 +606,7 @@ void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options 
                     {
                         entry.data.resize(entry.size_of_data);
                         stream.seekg(entry.pointer_to_raw_data);
-                        stream.read(reinterpret_cast<char *>(entry.data.data()), entry.data.size());
+                        stream.read(reinterpret_cast<char *>(entry.data.data()), static_cast<std::streamsize>(entry.data.size()));
                         entry.data_loaded = true;
                         break;
                     }
@@ -652,7 +617,7 @@ void PeExeInfo::load_debug_directory(std::istream &stream, LoadOptions::Options 
                         {
                             entry.data.resize(entry.size_of_data);
                             stream.seekg(entry.pointer_to_raw_data);
-                            stream.read(reinterpret_cast<char *>(entry.data.data()), entry.data.size());
+                            stream.read(reinterpret_cast<char *>(entry.data.data()), static_cast<std::streamsize>(entry.data.size()));
                             entry.data_loaded = true;
                         }
                         break;

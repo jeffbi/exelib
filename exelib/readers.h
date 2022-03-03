@@ -39,7 +39,7 @@ size_t read(std::istream &stream, T &destination)
 inline std::string read_sz_string(std::istream &stream)
 {
     std::string rv;
-    char        ch;
+    char        ch{};
 
     while (true)
     {
@@ -66,9 +66,9 @@ inline std::string read_sz_string(std::istream &stream)
 inline std::string read_sz_string(std::istream &stream, unsigned alignment)
 {
     std::string rv{read_sz_string(stream)};
-    auto        len = rv.size();
+    auto        len{rv.size()};
+    char        ch{};
 
-    char ch;
     while ((len + 1) % alignment)
     {
         read(stream, ch);
@@ -85,12 +85,12 @@ inline std::string read_sz_string(std::istream &stream, unsigned alignment)
 inline std::string read_string(std::istream &stream, uint32_t byte_count)
 {
     std::string rv(byte_count, '\0');
-    char        ch;
+    char        ch{};
 
     for (uint32_t i = 0; i < byte_count; ++i)
     {
         read(stream, ch);
-        rv[i] = ch;
+        rv.at(i) = ch;
     }
 
     return rv;
@@ -118,7 +118,7 @@ inline std::pair<uint32_t, std::string> read_length_and_string(std::istream &str
 class BytesReader
 {
 public:
-    BytesReader(const std::vector<uint8_t> &bytes)
+    BytesReader(const std::vector<uint8_t> &bytes) noexcept
       : _bytes{bytes}
     {}
 
@@ -151,14 +151,14 @@ public:
     /// \return The number of bytes read.
     size_t read(uint64_t &value)
     {
-        value = (static_cast<uint64_t>(_bytes[_pos++]))
-              | (static_cast<uint64_t>(_bytes[_pos++]) <<  8)
-              | (static_cast<uint64_t>(_bytes[_pos++]) << 16)
-              | (static_cast<uint64_t>(_bytes[_pos++]) << 24)
-              | (static_cast<uint64_t>(_bytes[_pos++]) << 32)
-              | (static_cast<uint64_t>(_bytes[_pos++]) << 40)
-              | (static_cast<uint64_t>(_bytes[_pos++]) << 48)
-              | (static_cast<uint64_t>(_bytes[_pos++]) << 56);
+        value = (static_cast<uint64_t>(_bytes.at(_pos++)))
+              | (static_cast<uint64_t>(_bytes.at(_pos++)) <<  8)
+              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 16)
+              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 24)
+              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 32)
+              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 40)
+              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 48)
+              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 56);
 
         return sizeof(value);
     }
@@ -169,10 +169,10 @@ public:
     /// \return The number of bytes read.
     size_t read(uint32_t &value)
     {
-        value = (static_cast<uint32_t>(_bytes[_pos++]))
-              | (static_cast<uint32_t>(_bytes[_pos++]) <<  8)
-              | (static_cast<uint32_t>(_bytes[_pos++]) << 16)
-              | (static_cast<uint32_t>(_bytes[_pos++]) << 24);
+        value = (static_cast<uint32_t>(_bytes.at(_pos++)))
+              | (static_cast<uint32_t>(_bytes.at(_pos++)) <<  8)
+              | (static_cast<uint32_t>(_bytes.at(_pos++)) << 16)
+              | (static_cast<uint32_t>(_bytes.at(_pos++)) << 24);
 
         return sizeof(value);
     }
@@ -183,8 +183,8 @@ public:
     /// \return The number of bytes read.
     size_t read(uint16_t &value)
     {
-        value = (static_cast<uint16_t>(_bytes[_pos++]))
-              | (static_cast<uint16_t>(_bytes[_pos++]) <<  8);
+        value = static_cast<uint16_t>((static_cast<uint16_t>(_bytes.at(_pos++)))
+                                    | (static_cast<uint16_t>(_bytes.at(_pos++)) <<  8));
 
         return sizeof(value);
     }
@@ -195,7 +195,7 @@ public:
     /// \return The number of bytes read.
     size_t read(uint8_t &value)
     {
-        value = _bytes[_pos++];
+        value = _bytes.at(_pos++);
 
         return sizeof(value);
     }
@@ -208,7 +208,7 @@ public:
     size_t read(uint8_t *array, size_t count)
     {
         for (size_t i = 0; i < count; ++i)
-            array[i] = _bytes[_pos++];
+            array[i] = _bytes.at(_pos++);
 
         return count;
     }

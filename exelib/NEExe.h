@@ -165,7 +165,7 @@ public:
     /// \param stream           An \c std::istream instance from which to read.
     /// \param header_location  Position in the file at which the NE portion begins.
     /// \param options          Flags indicating what portions of the file to load.
-    NeExeInfo(std::istream &stream, size_t header_location, LoadOptions::Options options)
+    NeExeInfo(std::istream &stream, std::streamoff header_location, LoadOptions::Options options)
       : _header_position{header_location},
         _res_shift_count{0}
     {
@@ -181,7 +181,7 @@ public:
     }
 
     /// \brief  Return the file position of the NE header.
-    size_t header_position() const noexcept
+    std::streamoff header_position() const noexcept
     {
         return _header_position;
     }
@@ -273,7 +273,7 @@ public:
     }
 
 private:
-    size_t          _header_position;   // absolute position in the file of the NE header. used for offset calculations
+    std::streamoff  _header_position;   // absolute position in the file of the NE header. used for offset calculations
     uint16_t        _res_shift_count;   // shift count loaded from the Resource Table
     NeExeHeader     _header;            // the NE header structure for this file
     ByteContainer   _entry_table;       // the Entry Table

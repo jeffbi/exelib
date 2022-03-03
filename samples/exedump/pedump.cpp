@@ -755,7 +755,7 @@ void dump_assembly_table(const std::vector<PeCliMetadataRowAssembly> *table, con
     outstream << std::endl;
 }
 
-void dump_assembly_os_table(const std::vector<PeCliMetadataRowAssemblyOS> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_assembly_os_table(const std::vector<PeCliMetadataRowAssemblyOS> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "AssemblyOS table (" << table->size() << " entries)\n";
 
@@ -770,7 +770,7 @@ void dump_assembly_os_table(const std::vector<PeCliMetadataRowAssemblyOS> *table
     outstream << std::endl;
 }
 
-void dump_assembly_processor_table(const std::vector<PeCliMetadataRowAssemblyProcessor> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_assembly_processor_table(const std::vector<PeCliMetadataRowAssemblyProcessor> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "AssemblyProcessor table (" << table->size() << " entries)\n";
 
@@ -804,7 +804,7 @@ void dump_assembly_ref_table(const std::vector<PeCliMetadataRowAssemblyRef> *tab
     outstream << std::endl;
 }
 
-void dump_assembly_ref_os_table(const std::vector<PeCliMetadataRowAssemblyRefOS> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_assembly_ref_os_table(const std::vector<PeCliMetadataRowAssemblyRefOS> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "AssemblyRefOS table (" << table->size() << " entries)\n";
 
@@ -820,7 +820,7 @@ void dump_assembly_ref_os_table(const std::vector<PeCliMetadataRowAssemblyRefOS>
     outstream << std::endl;
 }
 
-void dump_assembly_ref_processor_table(const std::vector<PeCliMetadataRowAssemblyRefProcessor> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_assembly_ref_processor_table(const std::vector<PeCliMetadataRowAssemblyRefProcessor> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "AssemblyRefProcessor table (" << table->size() << " entries)\n";
 
@@ -834,7 +834,7 @@ void dump_assembly_ref_processor_table(const std::vector<PeCliMetadataRowAssembl
     outstream << std::endl;
 }
 
-void dump_class_layout_table(const std::vector<PeCliMetadataRowClassLayout> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_class_layout_table(const std::vector<PeCliMetadataRowClassLayout> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "ClassLayout table (" << table->size() << " entries)\n";
 
@@ -979,7 +979,7 @@ void dump_event_table(const std::vector<PeCliMetadataRowEvent> *table, const PeC
     outstream << std::endl;
 }
 
-void dump_event_map_table(const std::vector<PeCliMetadataRowEventMap> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_event_map_table(const std::vector<PeCliMetadataRowEventMap> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "EventMap table (" << table->size() << " entries)\n";
 
@@ -1027,7 +1027,7 @@ void dump_field_table(const std::vector<PeCliMetadataRowField> *table, const PeC
     outstream << std::endl;
 }
 
-void dump_field_layout_table(const std::vector<PeCliMetadataRowFieldLayout> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_field_layout_table(const std::vector<PeCliMetadataRowFieldLayout> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "FieldLayout table (" << table->size() << " entries)\n";
 
@@ -1057,7 +1057,7 @@ void dump_field_marshal_table(const std::vector<PeCliMetadataRowFieldMarshal> *t
     outstream << std::endl;
 }
 
-void dump_field_rva_table(const std::vector<PeCliMetadataRowFieldRVA> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_field_rva_table(const std::vector<PeCliMetadataRowFieldRVA> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "FieldRVA table (" << table->size() << " entries)\n";
 
@@ -1302,7 +1302,7 @@ void dump_module_ref_table(const std::vector<PeCliMetadataRowModuleRef> *table, 
     outstream << std::endl;
 }
 
-void dump_nested_class_table(const std::vector<PeCliMetadataRowNestedClass> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_nested_class_table(const std::vector<PeCliMetadataRowNestedClass> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "NestedClass table (" << table->size() << " entries)\n";
 
@@ -1348,7 +1348,7 @@ void dump_property_table(const std::vector<PeCliMetadataRowProperty> *table, con
     outstream << std::endl;
 }
 
-void dump_property_map_table(const std::vector<PeCliMetadataRowPropertyMap> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_property_map_table(const std::vector<PeCliMetadataRowPropertyMap> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "PropertyMap table (" << table->size() << " entries)\n";
 
@@ -1364,7 +1364,7 @@ void dump_property_map_table(const std::vector<PeCliMetadataRowPropertyMap> *tab
     outstream << std::endl;
 }
 
-void dump_standalone_sig_table(const std::vector<PeCliMetadataRowStandAloneSig> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_standalone_sig_table(const std::vector<PeCliMetadataRowStandAloneSig> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "StandaloneSig table (" << table->size() << " entries)\n";
 
@@ -1586,7 +1586,7 @@ void dump_type_ref_table(const std::vector<PeCliMetadataRowTypeRef> *table, cons
     outstream << std::endl;
 }
 
-void dump_type_spec_table(const std::vector<PeCliMetadataRowTypeSpec> *table, const PeCliMetadata &metadata, std::ostream &outstream)
+void dump_type_spec_table(const std::vector<PeCliMetadataRowTypeSpec> *table, [[maybe_unused]]const PeCliMetadata &metadata, std::ostream &outstream)
 {
     outstream << "TypeSpec table (" << table->size() << " entries)\n";
 
@@ -1746,7 +1746,6 @@ void dump_cli_metadata_tables(const PeCli &cli, std::ostream &outstream)
                     break;
             }
         }
-        const auto *modules{ptables->module_table()};
     }
 }
 

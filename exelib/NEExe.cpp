@@ -29,57 +29,13 @@ void load_seg_table_entry(std::istream &stream, NeSegmentEntry &entry, uint16_t 
         if (entry.sector)   // zero means there is no sector data.
         {
             auto here = stream.tellg();
-            stream.seekg(static_cast<size_t>(entry.sector) << align_shift);
-            size_t size = entry.length ? entry.length : 65536;
-            entry.data.resize(size);
+            stream.seekg(static_cast<std::streamsize>((entry.sector) << align_shift));
+            std::streamsize size = entry.length ? entry.length : 65536;
+            entry.data.resize(static_cast<size_t>(size));
             stream.read(reinterpret_cast<char *>(&entry.data[0]), size);
             stream.seekg(here);
         }
         entry.data_loaded = true;  // say we have data even if we didn't read anything.
-    }
-}
-
-//TODO: move this to a common location?
-std::string make_resource_type_name(uint16_t type)
-{
-    static std::unordered_map<uint16_t, const char *> predefined_resource_names =
-        {
-            {static_cast<uint16_t>(ResourceType::Cursor), "CURSOR"},
-            {static_cast<uint16_t>(ResourceType::Bitmap), "BITMAP"},
-            {static_cast<uint16_t>(ResourceType::Icon), "ICON"},
-            {static_cast<uint16_t>(ResourceType::Menu), "MENU"},
-            {static_cast<uint16_t>(ResourceType::Dialog), "DIALOG"},
-            {static_cast<uint16_t>(ResourceType::String), "STRING"},
-            {static_cast<uint16_t>(ResourceType::FontDir), "FONTDIR"},
-            {static_cast<uint16_t>(ResourceType::Font), "FONT"},
-            {static_cast<uint16_t>(ResourceType::Accelerator), "ACCELERAOR"},
-            {static_cast<uint16_t>(ResourceType::RCData), "RCDATA"},
-            {static_cast<uint16_t>(ResourceType::MessageTable), "MESSAGE_TABLE"},
-            {static_cast<uint16_t>(ResourceType::GroupCursor), "GROUP_CURSOR"},
-            {static_cast<uint16_t>(ResourceType::GroupIcon), "GROUP_ICON"},
-
-            {static_cast<uint16_t>(ResourceType::Version), "VERSION"},
-            {static_cast<uint16_t>(ResourceType::DlgInclude), "DLGINCLUDE"},
-            {static_cast<uint16_t>(ResourceType::PlugPlay), "PLUGPLAY"},
-            {static_cast<uint16_t>(ResourceType::VXD), "VXD"},
-            {static_cast<uint16_t>(ResourceType::AniCursor), "ANICURSOR"},
-            {static_cast<uint16_t>(ResourceType::AniIcon), "ANIICON"},
-            {static_cast<uint16_t>(ResourceType::HTML), "HTML"},
-        };
-
-    if (type & 0x8000)
-    {
-        type &= ~0x8000;
-        auto it = predefined_resource_names.find(type);
-        if (it == predefined_resource_names.end())
-            return "<UNKNOWN>";
-        else
-            return it->second;
-    }
-    else
-    {
-        return "";  // this should ever happen because this function should never be called without the high bit set
-                    //TODO: consider throwing an error instead
     }
 }
 
@@ -147,7 +103,7 @@ void NeExeInfo::load_segment_table(std::istream &stream, bool include_segment_da
         auto    table_location = header_position() + header().segment_table_offset;
 
         stream.seekg(table_location);
-        for (int i=0; i < header().num_segment_entries; ++i)
+        for (uint16_t i = 0; i < header().num_segment_entries; ++i)
             load_seg_table_entry(stream, _segment_table[i], alignment_shift, include_segment_data);
     }
 }
@@ -196,11 +152,7 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
         for (auto &&entry : _resource_table)
         {
             // for each resource type there is either a name or it is a pre-defined, integer type
-            if (entry.type & 0x8000)    // high bit set indicates integer type
-            {
-                entry.type_name = make_resource_type_name(entry.type);
-            }
-            else    // This is a named resource type
+            if (!(entry.type & 0x8000)) // This is a named resource type
             {
                 // here, the type is an offset to the resource name, relative to the start of resource table.
                 stream.seekg(table_location + entry.type);
@@ -212,11 +164,7 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
             // read the resource name and the content for each resource of this type
             for (auto &&resource : entry.resources)
             {
-                if (resource.id & 0x8000)   // here also, high bit indicates an integer resource.
-                {
-                    resource.name = '#' + std::to_string(resource.id & ~0x8000);
-                }
-                else    // This is a named resource
+                if (!(resource.id & 0x8000))    // here also, high bit indicates an integer resource.
                 {
                     stream.seekg(table_location + resource.id);
                     read(stream, string_size);
@@ -227,14 +175,14 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
                 if (include_raw_data)
                 {
                     // read the raw content of the resource
-                    auto offset = resource.offset << _res_shift_count;
-                    auto length = resource.length << _res_shift_count;
+                    std::streamoff  offset{resource.offset << _res_shift_count};
+                    size_t          length{static_cast<unsigned>(resource.length) << _res_shift_count};
 
                     if (length)
                     {
                         resource.bits.resize(length);
                         stream.seekg(offset);
-                        stream.read(reinterpret_cast<char *>(&resource.bits[0]), resource.bits.size());
+                        stream.read(reinterpret_cast<char *>(&resource.bits[0]), static_cast<std::streamsize>(resource.bits.size()));
                     }
                     resource.data_loaded = true;
                 }
@@ -249,7 +197,7 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
 
 void NeExeInfo::load_resident_name_table(std::istream &stream)
 {
-    auto    table_location = header_position() + header().res_name_table_offset;
+    auto    table_location{header_position() + header().res_name_table_offset};
     uint8_t string_size;
     char    name_buffer[256];
 
@@ -320,12 +268,12 @@ void NeExeInfo::load_module_name_table(std::istream &stream)
 {
     if (header().num_module_entries)
     {
-        auto                    table_location = header_position() + header().module_table_offset;
+        std::streamoff          table_location{header_position() + header().module_table_offset};
         std::vector<uint16_t>   mod_offsets(header().num_module_entries);
 
         // load up all the module-name offsets
         stream.seekg(table_location);
-        stream.read(reinterpret_cast<char *>(&mod_offsets[0]), mod_offsets.size() * sizeof(mod_offsets[0]));
+        stream.read(reinterpret_cast<char *>(&mod_offsets[0]), static_cast<std::streamsize>(mod_offsets.size() * sizeof(mod_offsets[0])));
 
         // point to the imported names table
         table_location = header_position() + header().import_table_offset;

@@ -1,6 +1,6 @@
 /// \file   nedump.cpp
 /// Implementation of the function to dump a new NE-style executable.
-/// 
+///
 /// \author Jeff Bienstadt
 ///
 
@@ -8,8 +8,10 @@
 #include <ostream>
 #include <string>
 #include <sstream>
+#include <unordered_map>
 
 #include <NEExe.h>
+#include <resource_type.h>
 
 #include "HexVal.h"
 
@@ -271,6 +273,53 @@ void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, st
     }
 }
 
+namespace {
+
+std::string make_resource_type_name(uint16_t type)
+{
+    static std::unordered_map<uint16_t, const char *> predefined_resource_names =
+        {
+            {static_cast<uint16_t>(ResourceType::Cursor), "CURSOR"},
+            {static_cast<uint16_t>(ResourceType::Bitmap), "BITMAP"},
+            {static_cast<uint16_t>(ResourceType::Icon), "ICON"},
+            {static_cast<uint16_t>(ResourceType::Menu), "MENU"},
+            {static_cast<uint16_t>(ResourceType::Dialog), "DIALOG"},
+            {static_cast<uint16_t>(ResourceType::String), "STRING"},
+            {static_cast<uint16_t>(ResourceType::FontDir), "FONTDIR"},
+            {static_cast<uint16_t>(ResourceType::Font), "FONT"},
+            {static_cast<uint16_t>(ResourceType::Accelerator), "ACCELERAOR"},
+            {static_cast<uint16_t>(ResourceType::RCData), "RCDATA"},
+            {static_cast<uint16_t>(ResourceType::MessageTable), "MESSAGE_TABLE"},
+            {static_cast<uint16_t>(ResourceType::GroupCursor), "GROUP_CURSOR"},
+            {static_cast<uint16_t>(ResourceType::GroupIcon), "GROUP_ICON"},
+
+            {static_cast<uint16_t>(ResourceType::Version), "VERSION"},
+            {static_cast<uint16_t>(ResourceType::DlgInclude), "DLGINCLUDE"},
+            {static_cast<uint16_t>(ResourceType::PlugPlay), "PLUGPLAY"},
+            {static_cast<uint16_t>(ResourceType::VXD), "VXD"},
+            {static_cast<uint16_t>(ResourceType::AniCursor), "ANICURSOR"},
+            {static_cast<uint16_t>(ResourceType::AniIcon), "ANIICON"},
+            {static_cast<uint16_t>(ResourceType::HTML), "HTML"},
+        };
+
+    if (type & 0x8000)
+    {
+        type &= ~0x8000;
+        auto it = predefined_resource_names.find(type);
+        if (it == predefined_resource_names.end())
+            return "<UNKNOWN>";
+        else
+            return it->second;
+    }
+    else
+    {
+        return "";  // this should ever happen because this function should never be called without the high bit set
+                    //TODO: consider throwing an error instead
+    }
+}
+
+}   // anonymous namespace
+
 void dump_resource_table(const NeExeInfo::ResourceTable &table, uint16_t shift_count, std::ostream &outstream)
 {
     outstream << "Resources\n-------------------------------------------\n";
@@ -280,12 +329,20 @@ void dump_resource_table(const NeExeInfo::ResourceTable &table, uint16_t shift_c
 
         for (const auto &entry : table)
         {
-            outstream << "    Resource Type: " << std::setw(15) << entry.type_name << '\n';
+            std::string type_name{entry.type_name};
+            if (entry.type & 0x8000)
+                type_name = make_resource_type_name(entry.type);
+
+            outstream << "    Resource Type: " << std::setw(15) << type_name << '\n';
             outstream << "    Count                    " << std::setw(5) << entry.count << '\n';
 
             for (const auto &resource : entry.resources)
             {
-                outstream << "      " << resource.name << '\n';
+                std::string resource_name{resource.name};
+                if (resource.id & 0x8000)
+                    resource_name = '#' + std::to_string(resource.id & ~0x8000);
+
+                outstream << "      " << resource_name << '\n';
                 outstream << "        Location:       0x" << HexVal{resource.offset << shift_count} << '\n';
                 outstream << "        Size:                " << std::setw(5) << (resource.length << shift_count) << '\n';
                 outstream << "        Flags:              0x" << HexVal{resource.flags} << ' ';

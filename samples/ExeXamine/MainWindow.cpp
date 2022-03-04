@@ -616,7 +616,7 @@ void MainWindow::populate_tree()
 
         if (pe->sections().size())
         {
-            HTREEITEM pe_section_headers{_main_tree.add_item(L"Section Headers", TreeItemDataType::peSectionHeaders, item_pe_part, item_opt_header)};
+            _main_tree.add_item(L"Section Headers", TreeItemDataType::peSectionHeaders, item_pe_part, item_opt_header);
         }
 
         //TODO: We'll add entries for Import, Export, etc. later

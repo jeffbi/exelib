@@ -138,27 +138,31 @@ void dump_header(const NeExeInfo &info, std::ostream &outstream)
     outstream << "Minimum code swap size:                " << std::setw(5) << header.min_code_swap_size << '\n';
 }
 
-// This function requires some intimate knowlege of what the entry table
-// looks like and how it works.
+// This version of dump_entry_table demonstrates how to extract Entry Tabel information
+// from the raw bytes read from the file, and requires some intimate knowlege of what
+// the entry table looks like and how it works.
+//
+// You may prefer to use the version of dump_entry_table that uses pre-parsed objects,
+// implemented below this function.
 void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outstream)
 {
     size_t  bundle_count = 0;
     outstream << "Entry Table\n-------------------------------------------\n";
     if (table.size())
     {
-        const auto *ptr = table.data();
-        uint16_t    ordinal = 1;
+        const auto *ptr{table.data()};
+        uint16_t    ordinal{1};
 
         while (true)
         {
-            uint8_t n_bundle = *ptr++;  // number of entries in this bundle
+            uint8_t n_bundle{*ptr++};   // number of entries in this bundle
             if (n_bundle == 0)
                 break;  // end of entry table;
 
             ++bundle_count;
             outstream << "Bundle " << bundle_count << ", " << static_cast<unsigned int>(n_bundle) << " entries\n";
 
-            uint8_t indicator = *ptr++;
+            uint8_t indicator{*ptr++};
 
             if (indicator == 0x00)      // empty bundle
             {
@@ -169,10 +173,10 @@ void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outst
             {
                 for (uint8_t i = 0; i < n_bundle; ++i)
                 {
-                    uint8_t     flags = *ptr++;
+                    uint8_t     flags{*ptr++};
                     ptr += sizeof(uint16_t);    // Skip over the INT 3F instruction bytes. we don't display them
-                    uint8_t     segment = *ptr++;
-                    uint16_t    offset = *reinterpret_cast<const uint16_t *>(ptr);
+                    uint8_t     segment{*ptr++};
+                    uint16_t    offset{*reinterpret_cast<const uint16_t *>(ptr)};
                     ptr += sizeof(uint16_t);
 
                     outstream << "Ordinal 0x" << HexVal{ordinal} << "  Segment 0x" << HexVal{segment} << "  Offset 0x" << HexVal{offset} << "    ";
@@ -189,8 +193,8 @@ void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outst
             {
                 for (uint8_t i = 0; i < n_bundle; ++i)
                 {
-                    uint8_t     flags = *ptr++;
-                    uint16_t    offset = *reinterpret_cast<const uint16_t *>(ptr);
+                    uint8_t     flags{*ptr++};
+                    uint16_t    offset{*reinterpret_cast<const uint16_t *>(ptr)};
                     ptr += sizeof(uint16_t);
 
                     outstream << "Ordinal 0x" << HexVal{ordinal} << "  Segment 0x" << HexVal{indicator} << "  Offset 0x" << HexVal{offset} << "    FIXED ";
@@ -208,6 +212,35 @@ void dump_entry_table(const NeExeInfo::ByteContainer &table, std::ostream &outst
 
     if (bundle_count == 0)
         outstream << "no entries\n";
+}
+
+void dump_entry_table(const NeExeInfo::EntryTable &table, std::ostream &outstream)
+{
+    outstream << "Entry Table\n-------------------------------------------\n";
+    if (table.size())
+    {
+        size_t  n_bundle{1};
+        for (const auto &bundle : table)
+        {
+            outstream << "Bundle " << n_bundle << ", " << bundle.entries().size() << " entries\n";
+            for (const auto &entry : bundle.entries())
+            {
+                outstream << "Ordinal 0x" << HexVal{entry.ordinal()} << "  Segment 0x" << HexVal{entry.segment()} << "  Offset 0x" << HexVal{entry.offset()} << "    ";
+                outstream << (bundle.movable() ? "MOVEABLE" : "FIXED");
+                if (entry.is_exported())
+                    outstream << " EXPORTED";
+                if (entry.is_shared_data())
+                    outstream << " SHARED-DATA";
+                outstream << '\n';
+            }
+
+            ++n_bundle;
+        }
+    }
+    else
+    {
+        outstream << "no entries\n";
+    }
 }
 
 void print_segment_flags(uint16_t flags, std::ostream &outstream)
@@ -234,7 +267,7 @@ void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, st
         {
             for (const auto &entry : table)
             {
-                auto sector_offset = static_cast<uint32_t>(entry.sector) << align;
+                auto sector_offset{static_cast<uint32_t>(entry.sector) << align};
 
                 outstream << "Type: " << (entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE")
                           << "  Offset: 0x" << HexVal{sector_offset}
@@ -254,7 +287,7 @@ void dump_segment_table(const NeExeInfo::SegmentTable &table, uint16_t align, st
 
             for (const auto &entry : table)
             {
-                auto sector_offset = static_cast<uint32_t>(entry.sector) << align;
+                auto sector_offset{static_cast<uint32_t>(entry.sector) << align};
 
                 outstream << (entry.flags & NeSegmentEntry::DataSegment ? "DATA" : "CODE");
                 outstream << "     0x" << HexVal{sector_offset};
@@ -410,6 +443,7 @@ void dump_ne_info(const NeExeInfo &info, std::ostream &outstream)
     dump_resource_table(info.resource_table(), info.resource_shift_count(), outstream);
 
     outstream << separator << std::endl;
+//    dump_entry_table(info.entry_table_bytes(), outstream);
     dump_entry_table(info.entry_table(), outstream);
 
     outstream << separator << std::endl;

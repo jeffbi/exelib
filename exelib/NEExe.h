@@ -89,6 +89,79 @@ struct NeMoveableEntry
     uint16_t    segment_offset;
 };
 
+/// \brief  Entry in the Entry Table
+class NeEntryEntry
+{
+public:
+    NeEntryEntry(uint16_t ordinal, uint8_t flags, uint8_t segment, uint16_t offset) noexcept
+      : _ordinal{ordinal},
+        _flags{flags},
+        _segment{segment},
+        _offset{offset}
+    {}
+
+    bool is_exported() const noexcept
+    {
+        return _flags & 0x01;
+    }
+
+    bool is_shared_data() const noexcept
+    {
+        return _flags & 0x02;
+    }
+
+    uint16_t ordinal() const noexcept
+    {
+        return _ordinal;
+    }
+
+    uint8_t flags() const noexcept
+    {
+        return _flags;
+    }
+
+    uint8_t segment() const noexcept
+    {
+        return _segment;
+    }
+
+    uint16_t offset() const noexcept
+    {
+        return _offset;
+    }
+private:
+    uint16_t    _ordinal;
+    uint8_t     _flags;
+    uint8_t     _segment;
+    uint16_t    _offset;
+};
+
+/// \brief  A bundle from the Entry Table
+class NeEntryBundle
+{
+public:
+    explicit NeEntryBundle(uint8_t indicator) noexcept 
+      : _indicator{indicator}
+    {}
+
+    bool movable() const noexcept
+    {
+        return _indicator == 0xFF;
+    }
+
+    const std::vector<NeEntryEntry> &entries() const noexcept
+    {
+        return _entries;
+    }
+private:
+    friend class NeExeInfo;
+
+    uint8_t                     _indicator;
+    std::vector<NeEntryEntry>   _entries;
+};
+
+
+
 
 /// \brief  Entry in the Segment Table
 struct NeSegmentEntry
@@ -156,6 +229,7 @@ class NeExeInfo
 public:
     // Types
     using ByteContainer     = std::vector<uint8_t>;
+    using EntryTable        = std::vector<NeEntryBundle>;
     using ResourceTable     = std::vector<NeResourceEntry>;
     using SegmentTable      = std::vector<NeSegmentEntry>;
     using NameContainer     = std::vector<NeName>;
@@ -204,8 +278,14 @@ public:
         return _res_shift_count;
     }
 
-    /// \brief  Return a reference to the Entry Table.
-    const ByteContainer &entry_table() const noexcept
+    /// \brief  Return a reference to the Entry Table raw bytes.
+    const ByteContainer &entry_table_bytes() const noexcept
+    {
+        return _entry_table_bytes;
+    }
+
+    /// \brief  Return a reference to the parsed Entry Table.
+    const EntryTable &entry_table() const noexcept
     {
         return _entry_table;
     }
@@ -276,7 +356,8 @@ private:
     std::streamoff  _header_position;   // absolute position in the file of the NE header. used for offset calculations
     uint16_t        _res_shift_count;   // shift count loaded from the Resource Table
     NeExeHeader     _header;            // the NE header structure for this file
-    ByteContainer   _entry_table;       // the Entry Table
+    ByteContainer   _entry_table_bytes; // the Entry Table, as raw bytes
+    EntryTable      _entry_table;       // the Entry Table, unpacked
     SegmentTable    _segment_table;     // the Segment Table
     ResourceTable   _resource_table;    // the Resource Table
     NameContainer   _resident_names;    // the Resident Names Table

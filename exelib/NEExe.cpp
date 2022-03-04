@@ -84,9 +84,54 @@ void NeExeInfo::load_entry_table(std::istream &stream)
 {
     if (header().entry_table_size != 0)
     {
-        _entry_table.resize(header().entry_table_size);
+        _entry_table_bytes.resize(header().entry_table_size);
         stream.seekg(header_position() + header().entry_table_offset);
-        stream.read(reinterpret_cast<char *>(&_entry_table[0]), header().entry_table_size);
+        stream.read(reinterpret_cast<char *>(&_entry_table_bytes[0]), header().entry_table_size);
+
+        // Unpack the bytes into usable objects.
+        const auto *ptr = _entry_table_bytes.data();
+        uint16_t    ordinal{1};
+
+        while (true)
+        {
+            uint8_t n_entries{*ptr++};
+            if (n_entries == 0)
+                break;  // end of Entry Table
+
+            uint8_t         indicator{*ptr++};
+            NeEntryBundle   bundle{indicator};
+
+            if (indicator == 0x00)          // empty bundle
+            {
+                ++ordinal;
+            }
+            else if (indicator == 0xFF) // MOVABLE segments
+            {
+                for (uint8_t i = 0; i < n_entries; ++i)
+                {
+                    uint8_t     flags{*ptr++};
+                    ptr += sizeof(uint16_t);    // skip over INT 3F instruction bytes, we won't store them
+                    uint8_t     segment{*ptr++};
+                    uint16_t    offset{*reinterpret_cast<const uint16_t *>(ptr)};
+                    ptr += sizeof(uint16_t);
+
+                    bundle._entries.emplace_back(ordinal++, flags, segment, offset);
+                }
+            }
+            else                        // 0x01 -- 0xFE:    FIXED segments
+            {
+                for (uint8_t i = 0; i < n_entries; ++i)
+                {
+                    uint8_t     flags{*ptr++};
+                    uint16_t    offset{*reinterpret_cast<const uint16_t *>(ptr)};
+                    ptr += sizeof(uint16_t);
+
+                    bundle._entries.emplace_back(ordinal++, flags, indicator, offset);
+                }
+            }
+
+            _entry_table.push_back(bundle);
+        }
     }
 }
 

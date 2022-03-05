@@ -6,7 +6,6 @@
 #include <tchar.h>
 #include <strsafe.h>
 
-//#include "pch.h"    // pre-compiled headers
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #if defined(min)
@@ -230,6 +229,16 @@ void MainWindow::on_notify_tvn_sel_changed(const NMTREEVIEW *view)
 
         //TODO: other cases here, for Import, export, etc.
         case TreeItemDataType::peImports:
+            _main_list.populate_pe_imports(*_exe_info->pe_part()->imports());
+            break;
+        case TreeItemDataType::peImportEntry:
+            {
+                const auto *entry{reinterpret_cast<const PeImportDirectoryEntry *>(item_info->data)};
+                _main_list.populate_pe_import_entry(entry->lookup_table);
+            }
+            break;
+        case TreeItemDataType::peImportLookupEntry:
+            break;
         case TreeItemDataType::peExports:
         case TreeItemDataType::peResources:
         case TreeItemDataType::peRelocations:
@@ -619,7 +628,17 @@ void MainWindow::populate_tree()
             _main_tree.add_item(L"Section Headers", TreeItemDataType::peSectionHeaders, item_pe_part, item_opt_header);
         }
 
-        //TODO: We'll add entries for Import, Export, etc. later
+        //TODO: We'll add entries for Export, etc. later
+
+        if (pe->has_imports())
+        {
+            HTREEITEM item_pe_imports{_main_tree.add_item(L"Import Directory", TreeItemDataType::peImports, item_pe_part, nullptr)};
+
+            for (const auto &entry : *_exe_info->pe_part()->imports())
+            {
+                _main_tree.add_item(make_wide(entry.module_name).value().c_str(), TreeItemDataType::peImportEntry, &entry, item_pe_imports, nullptr);
+            }
+        }
 
         if (pe->has_cli())
         {
@@ -894,7 +913,6 @@ void MainWindow::populate_tree()
 
             _main_tree.expand(item_pe_cli, TVE_EXPAND);
         }
-        //TODO: Do more here!!!
     }
 
     _main_tree.select(item_root, TVGN_CARET);
@@ -928,5 +946,5 @@ void MainWindow::set_file_info(LPCTSTR path)
         }
         CloseHandle(fh);
     }
-    //TODO: Add more!!!
+    //TODO: Add more???
 }

@@ -1,7 +1,6 @@
 #ifndef _LIST_VIEW_H_
 #define _LIST_VIEW_H_
 
-//#include "pch.h"    // pre-compiled headers
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #if defined(min)

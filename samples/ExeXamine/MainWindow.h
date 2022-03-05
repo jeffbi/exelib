@@ -11,7 +11,6 @@
 #include "MainList.h"
 #include "MainTree.h"
 
-//#include "pch.h"    // pre-compiled headers
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 

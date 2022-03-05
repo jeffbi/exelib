@@ -57,7 +57,9 @@ public:
     void populate_pe_optional_header64(const PeOptionalHeader64 &header);
     void populate_pe_data_directory(const PeExeInfo &peinfo);
     void populate_pe_section_headers(const PeExeInfo::SectionTable &section_table);
-    //TODO: other populate_* functions here, for Import, export, etc.
+    //TODO: other populate_* functions here, for Import, Export, etc.
+    void populate_pe_imports(const PeExeInfo::ImportDirectory &imports);
+    void populate_pe_import_entry(const PeImportDirectoryEntry::LookupTable &table);
     void populate_pe_cli(const PeCli &cli);
     void populate_pe_cli_header(const PeCliHeader &header);
     void populate_pe_cli_metadata_header(const PeCliMetadataHeader &header);

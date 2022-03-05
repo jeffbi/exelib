@@ -10,7 +10,6 @@
 #include <tchar.h>
 #include <strsafe.h>
 
-//#include "pch.h"    // pre-compiled headers
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
@@ -2404,6 +2403,166 @@ void MainList::populate_pe_section_headers(const PeExeInfo::SectionTable &sectio
         ++lvi.iItem;
     }
 }
+
+
+void MainList::populate_pe_imports(const PeExeInfo::ImportDirectory &imports)
+{
+    clear();
+
+    std::array<wchar_t, 80> text_buffer{};
+
+    // Add the column headers
+    LVCOLUMN    lvc{};
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+    lvc.pszText = text_buffer.data();
+
+    lvc.iSubItem = 0;
+    lvc.fmt = LVCFMT_LEFT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Module Name");
+    lvc.cx = 150;
+    insert_column(lvc.iSubItem, &lvc);
+
+    ++lvc.iSubItem;
+    lvc.fmt = LVCFMT_RIGHT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Number of Imports");
+    lvc.cx = 120;
+    insert_column(lvc.iSubItem, &lvc);
+
+    ++lvc.iSubItem;
+    lvc.fmt = LVCFMT_RIGHT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Lookup Table RVA");
+    lvc.cx = 120;
+    insert_column(lvc.iSubItem, &lvc);
+
+    ++lvc.iSubItem;
+    lvc.fmt = LVCFMT_RIGHT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Timestamp");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+    ++lvc.iSubItem;
+    lvc.fmt = LVCFMT_RIGHT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Forwarder Chain");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+    ++lvc.iSubItem;
+    lvc.fmt = LVCFMT_RIGHT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Name RVA");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+    ++lvc.iSubItem;
+    lvc.fmt = LVCFMT_RIGHT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Address Table RVA");
+    lvc.cx = 120;
+    insert_column(lvc.iSubItem, &lvc);
+
+
+    // Insert the items
+    LVITEM  lvi{};
+    lvi.mask = LVIF_TEXT | LVIF_STATE;
+    lvi.pszText = text_buffer.data();
+    lvi.stateMask = 0;
+    lvi.state = 0;
+
+    lvi.iItem = 0;
+    for (const auto &entry : imports)
+    {
+        lvi.iSubItem = 0;
+        auto wide_str{make_wide(entry.module_name).value()};
+        lvi.pszText = wide_str.data();
+        insert_item(&lvi);
+        lvi.pszText = text_buffer.data();
+
+        ++lvi.iSubItem;
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%I64u", entry.lookup_table.size());
+        set_item(&lvi);
+
+        ++lvi.iSubItem;
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", entry.import_lookup_table_rva);
+        set_item(&lvi);
+
+        ++lvi.iSubItem;
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", entry.timestamp);
+        set_item(&lvi);
+
+        ++lvi.iSubItem;
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", entry.forwarder_chain);
+        set_item(&lvi);
+
+        ++lvi.iSubItem;
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", entry.name_rva);
+        set_item(&lvi);
+
+        ++lvi.iSubItem;
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", entry.import_address_table_rva);
+        set_item(&lvi);
+
+
+        ++lvi.iItem;
+    }
+}
+
+void MainList::populate_pe_import_entry(const PeImportDirectoryEntry::LookupTable &table)
+{
+    clear();
+
+    std::array<wchar_t, 80> text_buffer{};
+
+    // Add the column headers
+    LVCOLUMN    lvc{};
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+    lvc.pszText = text_buffer.data();
+
+    lvc.iSubItem = 0;
+    lvc.fmt = LVCFMT_LEFT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Name or Ordinal");
+    lvc.cx = 150;
+    insert_column(lvc.iSubItem, &lvc);
+
+    ++lvc.iSubItem;
+    lvc.fmt = LVCFMT_RIGHT;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Hint");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+
+    // Insert the items
+    LVITEM  lvi{};
+    lvi.mask = LVIF_TEXT | LVIF_STATE;
+    lvi.pszText = text_buffer.data();
+    lvi.stateMask = 0;
+    lvi.state = 0;
+
+    lvi.iItem = 0;
+    for (const auto &entry : table)
+    {
+        lvi.iSubItem = 0;
+        if (entry.ord_name_flag)
+        {
+            StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%04hX", entry.ordinal);
+            insert_item(&lvi);
+        }
+        else
+        {
+            auto wide_str{make_wide(entry.name).value()};
+            lvi.pszText = wide_str.data();
+            insert_item(&lvi);
+            lvi.pszText = text_buffer.data();
+        }
+
+        ++lvi.iSubItem;
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%04hX", entry.hint);
+        set_item(&lvi);
+
+        ++lvi.iItem;
+    }
+}
+
+
 
 void MainList::populate_pe_cli(const PeCli &cli)
 {

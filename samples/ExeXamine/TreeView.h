@@ -1,7 +1,6 @@
 #ifndef _TREE_VIEW_H_
 #define _TREE_VIEW_H_
 
-//#include "pch.h"    // pre-compiled headers
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 

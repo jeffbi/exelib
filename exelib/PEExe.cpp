@@ -477,9 +477,9 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
             auto    here{stream.tellg()};
             stream.seekg(pos);
 
-            PeImportDirectoryEntry  entry;
             while (true)
             {
+                PeImportDirectoryEntry  entry;
                 read(stream, entry.import_lookup_table_rva);
                 read(stream, entry.timestamp);
                 read(stream, entry.forwarder_chain);
@@ -496,12 +496,12 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                 _imports->push_back(entry);
             }
             // Load the DLL names
-            for (auto &&imp : *_imports)
+            for (auto &&entry : *_imports)
             {
-                stream.seekg(get_file_offset(imp.name_rva, *section));
-                imp.module_name = read_sz_string(stream);
+                stream.seekg(get_file_offset(entry.name_rva, *section));
+                entry.module_name = read_sz_string(stream);
 
-                stream.seekg(get_file_offset(imp.import_address_table_rva, *section));
+                stream.seekg(get_file_offset(entry.import_address_table_rva, *section));
                 while (true)
                 {
                     PeImportLookupEntry lookup_entry{0};

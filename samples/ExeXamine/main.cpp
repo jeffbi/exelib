@@ -23,7 +23,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE, _In_ PWSTR lpC
     MainWindow::Register(hInstance);
 
     MainWindow  win;
-    if (!win.Create(L"Exe Inspector"))
+    if (!win.Create(L"ExeXamine"))
         return -1;
 
     if (_tcsclen(lpCmdLine))

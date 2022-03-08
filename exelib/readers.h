@@ -8,6 +8,7 @@
 #ifndef _EXELIB_READSTREAM_H_
 #define _EXELIB_READSTREAM_H_
 
+#include <climits>
 #include <istream>
 #include <vector>
 #include <utility>
@@ -145,59 +146,17 @@ public:
         _pos = pos;
     }
 
-    /// \brief  Read a 64-bit unsigned value from the byte vector.
-    /// \param value    A reference to a 64-bit unsigned integer in which to
-    ///                 store the read bytes.
-    /// \return The number of bytes read.
-    size_t read(uint64_t &value)
-    {
-        value = (static_cast<uint64_t>(_bytes.at(_pos++)))
-              | (static_cast<uint64_t>(_bytes.at(_pos++)) <<  8)
-              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 16)
-              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 24)
-              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 32)
-              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 40)
-              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 48)
-              | (static_cast<uint64_t>(_bytes.at(_pos++)) << 56);
-
-        return sizeof(value);
-    }
-
-    /// \brief  Read a 32-bit unsigned value from the byte vector.
-    /// \param value    A reference to a 32-bit unsigned integer in which to
-    ///                 store the read bytes.
-    /// \return The number of bytes read.
-    size_t read(uint32_t &value)
-    {
-        value = (static_cast<uint32_t>(_bytes.at(_pos++)))
-              | (static_cast<uint32_t>(_bytes.at(_pos++)) <<  8)
-              | (static_cast<uint32_t>(_bytes.at(_pos++)) << 16)
-              | (static_cast<uint32_t>(_bytes.at(_pos++)) << 24);
-
-        return sizeof(value);
-    }
-
-    /// \brief  Read a 16-bit unsigned value from the byte vector.
-    /// \param value    A reference to a 16-bit unsigned integer in which to
-    ///                 store the read bytes.
-    /// \return The number of bytes read.
-    size_t read(uint16_t &value)
-    {
-        value = static_cast<uint16_t>((static_cast<uint16_t>(_bytes.at(_pos++)))
-                                    | (static_cast<uint16_t>(_bytes.at(_pos++)) <<  8));
-
-        return sizeof(value);
-    }
-
-    /// \brief  Read a single byte from the byte vector.
+    /// \brief  Read a given type from the byte vector
     /// \param value    A reference to a 8-bit unsigned integer in which to
     ///                 store the read byte.
     /// \return The number of bytes read.
-    size_t read(uint8_t &value)
+    template<typename T>
+    size_t read(T &value)
     {
-        value = _bytes.at(_pos++);
-
-        return sizeof(value);
+        value = 0;
+        for (size_t shift = 0; shift < sizeof(T) * CHAR_BIT; shift += CHAR_BIT)
+            value |= static_cast<T>(_bytes.at(_pos++) << shift);
+        return sizeof(T);
     }
 
     /// \brief  Read a given number of bytes into an array.

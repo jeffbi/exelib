@@ -29,7 +29,7 @@ enum class TreeItemDataType
     peOptionalHeader64,
     peDataDirectory,
     peSectionHeaders,
-    peImports,
+    peImportDirectory,
     peImportEntry,
     peImportLookupEntry,
     peExports,
@@ -115,29 +115,7 @@ public:
                                 parent,
                                 id);
     }
-    /*
-    HTREEITEM add_item(const wchar_t *item_text, const TreeItemData *data, HTREEITEM parent, HTREEITEM previous) noexcept
-    {
-        TVITEM          tvitem{};
-        TVINSERTSTRUCT  tv_insert{};
 
-        tvitem.mask = TVIF_TEXT     // TODO: Add image flags later
-                    | TVIF_PARAM;
-
-        tvitem.pszText = const_cast<LPWSTR>(item_text);
-        tvitem.cchTextMax = 0;  // not used when setting
-
-        //TODO: Add images later
-
-        tvitem.lParam = reinterpret_cast<LPARAM>(data);
-        tv_insert.item = tvitem;
-        tv_insert.hParent = parent;
-        tv_insert.hInsertAfter = previous ? previous : TVI_LAST;
-
-        //return (HTREEITEM)SendMessage(handle(), TVM_INSERTITEM, 0, (LPARAM)(LPTVINSERTSTRUCT)&tv_insert);
-        return TreeView_InsertItem(handle(), &tv_insert);
-    }
-*/
     HTREEITEM add_item(const wchar_t *item_text, TreeItemDataType data_type, const void *data, HTREEITEM parent, HTREEITEM previous) noexcept
     {
         TVITEM          tvitem{};

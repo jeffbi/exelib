@@ -60,6 +60,7 @@ public:
     //TODO: other populate_* functions here, for Import, Export, etc.
     void populate_pe_imports(const PeExeInfo::ImportDirectory &imports);
     void populate_pe_import_entry(const PeImportDirectoryEntry::LookupTable &table);
+    void populate_pe_exports(const PeExports &exports);
     void populate_pe_cli(const PeCli &cli);
     void populate_pe_cli_header(const PeCliHeader &header);
     void populate_pe_cli_metadata_header(const PeCliMetadataHeader &header);

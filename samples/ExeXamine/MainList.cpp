@@ -2562,6 +2562,140 @@ void MainList::populate_pe_import_entry(const PeImportDirectoryEntry::LookupTabl
     }
 }
 
+void MainList::populate_pe_exports(const PeExports &exports)
+{
+    clear();
+
+    std::array<wchar_t, 80> text_buffer{0};
+
+    // Add the column headers
+    LVCOLUMN    lvc{};
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+    lvc.fmt = LVCFMT_LEFT;
+    lvc.pszText = text_buffer.data();
+
+    lvc.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Item");
+    lvc.cx = 200;
+    insert_column(0, &lvc);
+
+    lvc.fmt = LVCFMT_LEFT;
+    ++lvc.iSubItem;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Value");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+
+    // Insert the items
+    LVITEM  lvi{};
+
+    lvi.mask = LVIF_TEXT | LVIF_STATE;
+    lvi.pszText = text_buffer.data();
+    lvi.stateMask = 0;
+    lvi.state = 0;
+
+    lvi.iItem = 0;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Name");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), make_wide(exports.name).value().data());
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Export flags");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", exports.directory.export_flags);
+    set_item(&lvi);
+    //TODO: expand flags into next-door sub-item!!!
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Timestamp");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    const time_t    tt{exports.directory.timestamp};
+    tm              tm{0};
+    gmtime_s(&tm, &tt);
+    std::wcsftime(text_buffer.data(), text_buffer.size(), L"%c", &tm);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Major version");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%hu", exports.directory.version_major);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Minor version");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%hu", exports.directory.version_minor);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Name RVA");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", exports.directory.name_rva);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Ordinal base");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%u", exports.directory.ordinal_base);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Number of exports");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%u", exports.directory.num_address_table_entries);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Number of names");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%u", exports.directory.num_name_pointers);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Export address table RVA");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", exports.directory.export_address_rva);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Name pointer RVA");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", exports.directory.name_pointer_rva);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Ordinal table RVA");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", exports.directory.ordinal_table_rva);
+    set_item(&lvi);
+}
+
 
 
 void MainList::populate_pe_cli(const PeCli &cli)

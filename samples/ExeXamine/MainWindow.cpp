@@ -123,10 +123,6 @@ int MainWindow::on_notify([[maybe_unused]] WPARAM wParam, LPARAM lParam)
 
 void MainWindow::on_notify_tvn_sel_changed(const NMTREEVIEW *view)
 {
-    //const auto type{static_cast<TreeItemDataType>(view->itemNew.lParam)};
-
-    //switch (type)
-
     const auto *item_info{reinterpret_cast<TreeItemData *>(view->itemNew.lParam)};
     switch (item_info->type)
     {
@@ -227,19 +223,22 @@ void MainWindow::on_notify_tvn_sel_changed(const NMTREEVIEW *view)
             _main_list.populate_pe_section_headers(_exe_info->pe_part()->sections());
             break;
 
-        //TODO: other cases here, for Import, export, etc.
-        case TreeItemDataType::peImports:
+        case TreeItemDataType::peImportDirectory:
             _main_list.populate_pe_imports(*_exe_info->pe_part()->imports());
             break;
+
         case TreeItemDataType::peImportEntry:
             {
-                const auto *entry{reinterpret_cast<const PeImportDirectoryEntry *>(item_info->data)};
+                const auto *entry{static_cast<const PeImportDirectoryEntry *>(item_info->data)};
                 _main_list.populate_pe_import_entry(entry->lookup_table);
             }
             break;
-        case TreeItemDataType::peImportLookupEntry:
-            break;
+
+        //TODO: other cases here, for Export, etc.
         case TreeItemDataType::peExports:
+            _main_list.populate_pe_exports(*_exe_info->pe_part()->exports());
+            break;
+
         case TreeItemDataType::peResources:
         case TreeItemDataType::peRelocations:
         case TreeItemDataType::peDebug:
@@ -632,12 +631,18 @@ void MainWindow::populate_tree()
 
         if (pe->has_imports())
         {
-            HTREEITEM item_pe_imports{_main_tree.add_item(L"Import Directory", TreeItemDataType::peImports, item_pe_part, nullptr)};
+            HTREEITEM item_pe_imports{_main_tree.add_item(L"Import Directory", TreeItemDataType::peImportDirectory, item_pe_part, nullptr)};
 
             for (const auto &entry : *_exe_info->pe_part()->imports())
             {
                 _main_tree.add_item(make_wide(entry.module_name).value().c_str(), TreeItemDataType::peImportEntry, &entry, item_pe_imports, nullptr);
             }
+        }
+
+        if (pe->has_exports())
+        {
+            HTREEITEM   item_pe_exports{_main_tree.add_item(L"Export Directory", TreeItemDataType::peExports, item_pe_part, nullptr)};
+            //_main_tree.add_item(L"Exports", TreeItemDataType::Ex)
         }
 
         if (pe->has_cli())

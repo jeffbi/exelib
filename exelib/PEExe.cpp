@@ -504,7 +504,7 @@ void PeExeInfo::load_imports(std::istream &stream, bool using_64)
                 stream.seekg(get_file_offset(imp.import_address_table_rva, *section));
                 while (true)
                 {
-                    PeImportLookupEntry lookup_entry{0};
+                    PeImportLookupEntry lookup_entry{};
                     if (using_64)
                     {
                         uint64_t value;

@@ -215,7 +215,7 @@ std::string PeCliMetadata::get_string(uint32_t index) const
 
 Guid PeCliMetadata::get_guid(uint32_t index) const
 {
-    Guid        guid{0};
+    Guid        guid{};
     const auto *pstream{get_stream("#GUID")};
 
     if (pstream)

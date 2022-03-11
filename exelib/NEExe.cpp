@@ -4,6 +4,7 @@
 /// \author Jeff Bienstadt
 ///
 
+#include <array>
 #include <exception>
 #include <istream>
 #include <memory>
@@ -192,8 +193,8 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
         }
 
         // now read the resource names
-        char name_buffer[256];
-        uint8_t string_size;
+        std::array<char, 256>   name_buffer;
+        uint8_t                 string_size;
         for (auto &&entry : _resource_table)
         {
             // for each resource type there is either a name or it is a pre-defined, integer type
@@ -202,8 +203,8 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
                 // here, the type is an offset to the resource name, relative to the start of resource table.
                 stream.seekg(table_location + entry.type);
                 read(stream, string_size);
-                stream.read(name_buffer, string_size);
-                entry.type_name.append(name_buffer, string_size);
+                stream.read(name_buffer.data(), string_size);
+                entry.type_name.append(name_buffer.data(), string_size);
             }
 
             // read the resource name and the content for each resource of this type
@@ -213,8 +214,8 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
                 {
                     stream.seekg(table_location + resource.id);
                     read(stream, string_size);
-                    stream.read(name_buffer, string_size);
-                    resource.name.append(name_buffer, string_size);
+                    stream.read(name_buffer.data(), string_size);
+                    resource.name.append(name_buffer.data(), string_size);
                 }
 
                 if (include_raw_data)
@@ -242,18 +243,18 @@ void NeExeInfo::load_resource_table(std::istream &stream, bool include_raw_data)
 
 void NeExeInfo::load_resident_name_table(std::istream &stream)
 {
-    auto    table_location{header_position() + header().res_name_table_offset};
-    uint8_t string_size;
-    char    name_buffer[256];
+    auto                    table_location{header_position() + header().res_name_table_offset};
+    uint8_t                 string_size;
+    std::array<char, 256>   name_buffer;
 
     stream.seekg(table_location);
     read(stream, string_size);
 
     while (string_size)
     {
-        stream.read(name_buffer, string_size);
+        stream.read(name_buffer.data(), string_size);
         NeName name;
-        name.name.append(name_buffer, string_size);
+        name.name.append(name_buffer.data(), string_size);
         read(stream, name.ordinal);
         _resident_names.push_back(name);
 
@@ -263,18 +264,18 @@ void NeExeInfo::load_resident_name_table(std::istream &stream)
 
 void NeExeInfo::load_nonresident_name_table(std::istream &stream)
 {
-    auto    table_location = header().non_res_name_table_pos;     // This one is relative to the beginning of the file.
-    uint8_t string_size;
-    char    name_buffer[256];
+    auto                    table_location = header().non_res_name_table_pos;     // This one is relative to the beginning of the file.
+    uint8_t                 string_size;
+    std::array<char, 256>   name_buffer;
 
     stream.seekg(table_location);
     read(stream, string_size);
 
     while (string_size)
     {
-        stream.read(name_buffer, string_size);
+        stream.read(name_buffer.data(), string_size);
         NeName name;
-        name.name.append(name_buffer, string_size);
+        name.name.append(name_buffer.data(), string_size);
         read(stream, name.ordinal);
         _nonresident_names.push_back(name);
 
@@ -284,11 +285,11 @@ void NeExeInfo::load_nonresident_name_table(std::istream &stream)
 
 void NeExeInfo::load_imported_name_table(std::istream &stream)
 {
-    auto    entry_table_location = header_position() + header().entry_table_offset;
-    auto    table_location = header_position() + header().import_table_offset;
-    auto    table_size = entry_table_location - table_location;
-    auto    pos = 0u;
-    char    name_buffer[256] {0};
+    auto                    entry_table_location = header_position() + header().entry_table_offset;
+    auto                    table_location = header_position() + header().import_table_offset;
+    auto                    table_size = entry_table_location - table_location;
+    auto                    pos = 0u;
+    std::array<char, 256>   name_buffer{};
 
     stream.seekg(table_location);
     while (pos < table_size)
@@ -298,14 +299,14 @@ void NeExeInfo::load_imported_name_table(std::istream &stream)
         ++pos;
         if (string_size)
         {
-            stream.read(name_buffer, string_size);
+            stream.read(name_buffer.data(), string_size);
             pos += string_size;
         }
         else
         {
             name_buffer[0] = '\0';
         }
-        _imported_names.emplace_back(name_buffer, string_size);
+        _imported_names.emplace_back(name_buffer.data(), string_size);
     }
 }
 
@@ -322,14 +323,14 @@ void NeExeInfo::load_module_name_table(std::istream &stream)
 
         // point to the imported names table
         table_location = header_position() + header().import_table_offset;
-        uint8_t string_size;
-        char    name_buffer[256];
+        uint8_t                 string_size;
+        std::array<char, 256>   name_buffer;
         for (uint16_t offset : mod_offsets)
         {
             stream.seekg(table_location + offset);
             read(stream, string_size);
-            stream.read(name_buffer, string_size);
-            _module_names.emplace_back(name_buffer, string_size);
+            stream.read(name_buffer.data(), string_size);
+            _module_names.emplace_back(name_buffer.data(), string_size);
         }
     }
 }

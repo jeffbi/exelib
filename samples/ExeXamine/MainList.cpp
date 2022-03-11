@@ -175,9 +175,7 @@ void MainList::populate_mz(const MzExeHeader &header)
 {
     clear();
 
-    //TCHAR   text_buffer[80]{0};
     std::array<wchar_t, 80> text_buffer{0};
-    //constexpr size_t        size{text_buffer.size()};
 
     // Add the column headers
     LVCOLUMN    lvc{};
@@ -1599,8 +1597,11 @@ void MainList::populate_pe_file_header(const PeImageFileHeader &header)
     std::wostringstream stream;
     // list characteristics
     for (const auto &pair : characteristics)
-        if (header.characteristics & static_cast<std::underlying_type<PeImageFileHeader::Characteristics>::type>(pair.first))
-            stream << pair.second << L' ';
+    {
+        auto [mask, name]{pair};
+        if (header.characteristics & static_cast<std::underlying_type<PeImageFileHeader::Characteristics>::type>(mask))
+            stream << name << L' ';
+    }
 
     _tcscpy_s(text_buffer.data(), text_buffer.size(), stream.str().c_str());
     lvi.iSubItem = 2;
@@ -1655,8 +1656,6 @@ const wchar_t *get_subsystem_name(uint16_t subsystem) noexcept
 
 void MainList::populate_pe_optional_header32(const PeOptionalHeader32 &header)
 {
-    //TCHAR   text_buffer[80]{};
-    //constexpr size_t size{sizeof(text_buffer) / sizeof(text_buffer[0])};
     std::array<wchar_t, 80> text_buffer{0};
 
     // Insert the items
@@ -2202,7 +2201,7 @@ void MainList::populate_pe_data_directory(const PeExeInfo &peinfo)
     insert_column(3, &lvc);
 
 
-    static constexpr const wchar_t *data_table_names[]
+    static constexpr std::array data_table_names
         {
             L"Export Table",
             L"Import Table",
@@ -2236,7 +2235,7 @@ void MainList::populate_pe_data_directory(const PeExeInfo &peinfo)
         lvi.iSubItem = 0;
 
         _tcscpy_s(text_buffer.data(), text_buffer.size(),
-                    i < (sizeof(data_table_names) / sizeof(data_table_names[0]))
+                    i < data_table_names.size()
                         ? data_table_names[i] : L"???");
         insert_item(&lvi);
         lvi.iSubItem = 1;
@@ -2353,12 +2352,13 @@ void MainList::populate_pe_section_headers(const PeExeInfo::SectionTable &sectio
     {
         // If the name occupies exactly eight bytes, it is not nul-terminated,
         // so we copy the name into a nul-terminated temporary buffer.
-        auto &name{section.header().name};
+        auto           &name{section.header().name};
         constexpr auto  sz{sizeof(name) / sizeof(name[0])};
-        char name_buffer[sz + 1]{0};
-        std::copy(name, name + sz, name_buffer);
 
-        MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, name_buffer, sizeof(name_buffer), text_buffer.data(), static_cast<int>(text_buffer.size()));
+        std::array<char, sz + 1>    name_buffer{0};
+        std::copy(name, name + sz, name_buffer.data());
+
+        MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, name_buffer.data(), static_cast<int>(name_buffer.size()), text_buffer.data(), static_cast<int>(text_buffer.size()));
         lvi.iSubItem = 0;
         insert_item(&lvi);
 
@@ -2737,13 +2737,13 @@ void MainList::populate_pe_cli(const PeCli &cli)
     ++lvi.iSubItem;
     // If the name occupies exactly eight bytes, it is not nul-terminated,
     // so we copy the name into a nul-terminated temporary buffer.
-    auto &name{cli.section().header().name};
+    auto           &name{cli.section().header().name};
     constexpr auto  sz{sizeof(name) / sizeof(name[0])};
-    char name_buffer[sz + 1] {0};
-    //std::memcpy(name_buffer, name, sizeof(name));
-    std::copy(name, name + sz, name_buffer);
 
-    MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, name_buffer, sizeof(name_buffer), text_buffer.data(), static_cast<int>(text_buffer.size()));
+    std::array<char, sz + 1>    name_buffer{0};
+    std::copy(name, name + sz, name_buffer.data());
+
+    MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, name_buffer.data(), static_cast<int>(name_buffer.size()), text_buffer.data(), static_cast<int>(text_buffer.size()));
     set_item(&lvi);
 }
 

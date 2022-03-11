@@ -5,6 +5,7 @@
 ///
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <ctime>
 #include <iomanip>
@@ -40,17 +41,17 @@ std::string format_timestamp(uint32_t timestamp)
     if (timestamp == 0 || timestamp == 0xFFFFFFFF)
         return "";
 
-    time_t  tt = timestamp;
-    char    buf[60];
+    time_t                  tt = timestamp;
+    std::array<char, 60>    buf;
 #if defined(_MSC_VER)   // the Microsoft compiler insists that you use their gmtime_s function, or it generates a compiler error. Bah!
     tm      tm;
     gmtime_s(&tm, &tt);
-    std::strftime(buf, sizeof(buf), "%c", &tm);
+    std::strftime(buf.data(), buf.size(), "%c", &tm);
 #else
-    std::strftime(buf, sizeof(buf), "%c", std::gmtime(&tt));
+    std::strftime(buf.data(), buf.size(), "%c", std::gmtime(&tt));
 #endif
 
-    return buf;
+    return buf.data();
 }
 
 // Helper to make the target_machine member of the PE header into a string for output.
@@ -149,8 +150,11 @@ void dump_header(const PeImageFileHeader &header, std::ostream &outstream)
 
     // list characteristics
     for (const auto &pair : characteristics)
-        if (header.characteristics & static_cast<std::underlying_type<PeImageFileHeader::Characteristics>::type>(pair.first))
-            outstream << pair.second << ' ';
+    {
+        auto [mask, name]{pair};
+        if (header.characteristics & static_cast<std::underlying_type<PeImageFileHeader::Characteristics>::type>(mask))
+            outstream << name << ' ';
+    }
 
     outstream << '\n';
 }
@@ -232,9 +236,10 @@ std::string get_dll_characteristics_string(uint16_t characteristics)
 
     for (const auto &pair : characteristic_pairs)
     {
-        if (characteristics & static_cast<ut>(pair.first))
+        auto [mask, name]{pair};
+        if (characteristics & static_cast<ut>(mask))
         {
-            rv += pair.second;
+            rv += name;
             rv += ' ';
         }
     }
@@ -290,31 +295,32 @@ void dump_optional_header(const PeOptionalHeader64 &header, std::ostream &outstr
 
 void dump_data_directory(const PeExeInfo::DataDirectory &data_dir, std::ostream &outstream)
 {
-    static constexpr const char *data_table_names[]
-        {
-            "Export Table",
-            "Import Table",
-            "Resource Table",
-            "Exception Table",
-            "Certificate Table",
-            "Base Relocation Table",
-            "Debug",
-            "Architecture",
-            "Global Pointer",
-            "Thread Local Storage Table",
-            "Load Configuration Table",
-            "Bound Import Table",
-            "Import Address Table",
-            "Delay Import Descriptor",
-            "CLR Runtime Header",
-            "Reserved"
-        };
+    static constexpr std::array data_table_names
+    {
+        "Export Table",
+        "Import Table",
+        "Resource Table",
+        "Exception Table",
+        "Certificate Table",
+        "Base Relocation Table",
+        "Debug",
+        "Architecture",
+        "Global Pointer",
+        "Thread Local Storage Table",
+        "Load Configuration Table",
+        "Bound Import Table",
+        "Import Address Table",
+        "Delay Import Descriptor",
+        "CLR Runtime Header",
+        "Reserved"
+    };
+
     for (size_t i = 0; i < data_dir.size(); ++i)
     {
         const PeDataDirectoryEntry &entry = data_dir[i];
 
         outstream << "  0x" << HexVal{entry.virtual_address} << "  " << std::setw(10) << entry.size << "  ";
-        if (i < (sizeof(data_table_names) / sizeof(data_table_names[0])))
+        if (i < data_table_names.size())
             outstream << data_table_names[i] << '\n';
         else
             outstream << "???" << '\n';
@@ -434,8 +440,11 @@ std::vector<std::string> get_section_header_characteristic_strings(uint32_t char
     std::vector<std::string>    rv;
 
     for (const auto &pair : characteristic_pairs)
-        if (characteristics & static_cast<ut>(pair.first))
-            rv.push_back(pair.second);
+    {
+        auto [mask, name]{pair};
+        if (characteristics & static_cast<ut>(mask))
+            rv.push_back(name);
+    }
 
     return rv;
 }

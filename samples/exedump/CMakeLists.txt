@@ -11,8 +11,8 @@ target_sources(exedump
 
 target_compile_features(exedump PUBLIC cxx_std_17)
 target_compile_options(exedump PRIVATE
-     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-          -Wall>
-     $<$<CXX_COMPILER_ID:MSVC>:
-          /W4>)
+    $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:
+        -Wall -Wextra>
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /W4>)
 target_link_libraries(exedump PRIVATE exelib)

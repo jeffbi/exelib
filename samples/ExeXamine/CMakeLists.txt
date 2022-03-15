@@ -18,8 +18,8 @@ target_sources(ExeXamine
 target_compile_features(ExeXamine PUBLIC cxx_std_17)
 target_compile_definitions(ExeXamine PRIVATE UNICODE _UNICODE)
 target_compile_options(ExeXamine PRIVATE
-     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-          -Wall>
-     $<$<CXX_COMPILER_ID:MSVC>:
-          /W4>)
+    $<$<CXX_COMPILER_ID:Clang,AppleClang,GNU>:
+        -Wall -Wextra>
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /W4>)
 target_link_libraries(ExeXamine PRIVATE Comctl32 exelib)

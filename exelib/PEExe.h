@@ -1685,8 +1685,10 @@ public:
     ///
     PeExeInfo(std::istream &stream, size_t header_location, LoadOptions::Options options);
 
-    PeExeInfo(const PeExeInfo &) = delete;
-    PeExeInfo &operator=(const PeExeInfo &) = delete;
+    PeExeInfo(const PeExeInfo &) = delete;              /// Copy constructor is deleted.
+    PeExeInfo &operator=(const PeExeInfo &) = delete;   /// Copy assignment operator is deleted.
+    PeExeInfo(PeExeInfo &&) = delete;                   /// Move constructor is deleted.
+    PeExeInfo &operator=(PeExeInfo &&) = delete;        /// Move assignment operator is deleted.
 
     /// \brief  Return the file position of the PE header.
     size_t header_position() const noexcept
@@ -1790,7 +1792,7 @@ public:
     }
 
 private:
-    size_t                                  _header_position;   // Absolute position in the file of the PE header. useful for offset calculations.
+    size_t                                  _header_position;   // Absolute position in the file of the PE header. Useful for offset calculations.
     PeImageFileHeader                       _image_file_header; // The PE image file header structure for this file.
     std::unique_ptr<PeOptionalHeader32>     _optional_32;       // Pointer to 32-bit Optional Header. Either this or the one below, never both.
     std::unique_ptr<PeOptionalHeader64>     _optional_64;       // Pointer to 64-bit Optional Header. Either this or the one above, never both.

@@ -27,7 +27,7 @@ public:
     static constexpr Options LoadCliMetadataStreams = 0x00E0;   ///< Load the CLI metadata tables from the CLI #~ heap. Implies loading CLI metadata.
     static constexpr Options LoadCliMetadataTables  = 0x01E0;   ///< Load the CLI metadata tables from the CLI #~ heap. Implies loading CLI metadata streams.
     static constexpr Options LoadAllCli             = 0x01E0;   ///< Load all the CLI information, including the metadata and tables.
-    static constexpr Options LoadAllData            = 0xFFFF;   ///< Load all the data from an executable image.
+    static constexpr Options LoadAll                = 0xFFFF;   ///< Load all the data from an executable image.
                                                                 //This value could change if more flags are added above.
 };
 

@@ -60,12 +60,17 @@ public:
     /// \param stream   An \c std::istream instance from which to read
     /// \param options  Flags indicating what portions of the file to load.
     MzExeInfo(std::istream &stream, LoadOptions::Options options)
-        : _loaded_relocation_table{false}
+      : _loaded_relocation_table{false}
     {
         load_header(stream);
         if (options & LoadOptions::LoadMzRelocationData)
             load_relocation_table(stream, _header.relocation_table_pos, _header.num_relocation_items);
     }
+
+    MzExeInfo(const MzExeInfo &) = delete;              /// Copy constructor is deleted.
+    MzExeInfo &operator=(const MzExeInfo &) = delete;   /// Copy assignment operator is deleted;
+    MzExeInfo(MzExeInfo &&) = delete;                   /// Move constructor is deleted.
+    MzExeInfo &operator=(MzExeInfo &&) = delete;        /// Move assignment operator is deleted;
 
     /// \brief  Return a reference to the MZ header.
     const MzExeHeader &header() const noexcept

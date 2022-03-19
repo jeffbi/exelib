@@ -247,7 +247,6 @@ const std::vector<uint8_t> PeCliMetadata::get_blob(uint32_t index) const
         auto    begin{pair.second};
         auto    end{begin + len};
 
-        //return {std::vector<uint8_t>(begin, end)};
         return {begin, end};
     }
 
@@ -1042,7 +1041,6 @@ void PeCliMetadataTables::load(BytesReader &reader)
                 {
                     PeCliMetadataRowMemberRef   row{};
                     read_index(reader, row.class_, needs_wide_index(PeCliEncodedIndexType::MemberRefParent));
-                    //read_index(reader, row.class_, true);
                     read_strings_heap_index(reader, row.name);
                     read_blob_heap_index(reader, row.signature);
 

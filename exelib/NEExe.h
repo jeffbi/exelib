@@ -140,7 +140,7 @@ private:
 class NeEntryBundle
 {
 public:
-    explicit NeEntryBundle(uint8_t indicator) noexcept 
+    explicit NeEntryBundle(uint8_t indicator) noexcept
       : _indicator{indicator}
     {}
 
@@ -253,6 +253,11 @@ public:
         load_imported_name_table(stream);
         load_module_name_table(stream);
     }
+
+    NeExeInfo(const NeExeInfo &) = delete;              /// Copy constructor is deleted.
+    NeExeInfo &operator=(const NeExeInfo &) = delete;   /// Copy assignment operator is deleted;
+    NeExeInfo(NeExeInfo &&) = delete;                   /// Move constructor is deleted.
+    NeExeInfo &operator=(NeExeInfo &&) = delete;        /// Move assignment operator is deleted;
 
     /// \brief  Return the file position of the NE header.
     std::streamoff header_position() const noexcept

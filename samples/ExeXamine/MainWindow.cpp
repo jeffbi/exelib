@@ -511,7 +511,7 @@ void MainWindow::load_file(LPCTSTR file_path)
     {
         try
         {
-            _exe_info = std::make_unique<ExeInfo>(stream, LoadOptions::LoadAllData);
+            _exe_info = std::make_unique<ExeInfo>(stream, LoadOptions::LoadAll);
             set_file_info(file_path);
             reset_ui();
         }

@@ -401,7 +401,7 @@ struct PeExportDirectory
 
 // For the moment I'm not going to attempt to load the forwarder
 // strings. I have found at least one DLL for which this code
-// does not work. In that DLL, The alorithm for determining if
+// does not work. In that DLL, The algorithm for determining if
 // the export is a forward reference does not work properly.
 //
 // This may have something to do with the export tables in

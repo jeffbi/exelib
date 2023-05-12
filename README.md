@@ -56,7 +56,7 @@ including any CLI (.NET) metadata. More work on PE executables is underway
 now and should be available in the near future.
 
 ## The Samples
-There are two sample programs provided, `exedump` and `fntextract`.
+There are three sample programs provided, `exedump`, `fntextract`, and `ExeXamine`.
 
 ### `exedump`
 The `exedump` sample dumps information about the executable to `stdout`.

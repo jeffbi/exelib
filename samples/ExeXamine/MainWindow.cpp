@@ -239,7 +239,25 @@ void MainWindow::on_notify_tvn_sel_changed(const NMTREEVIEW *view)
             _main_list.populate_pe_exports(*_exe_info->pe_part()->exports());
             break;
 
-        case TreeItemDataType::peResources:
+        case TreeItemDataType::peResourceDir:
+            {
+                const auto *resdir{static_cast<const PeResourceDirectory *>(item_info->data)};
+                _main_list.populate_pe_resource_dir(*resdir);
+            }
+            break;
+        case TreeItemDataType::peResourceDirEntry:
+            {
+                const auto *entry{static_cast<const PeResourceDirectoryEntry *>(item_info->data)};
+                _main_list.populate_pe_resource_dir_entry(*entry);
+            }
+            break;
+        case TreeItemDataType::peResourceDataEntry:
+            {
+                const auto *data_entry{static_cast<const PeResourceDataEntry *>(item_info->data)};
+                _main_list.populate_pe_resource_data_entry(*data_entry);
+            }
+            break;
+
         case TreeItemDataType::peRelocations:
         case TreeItemDataType::peDebug:
             break;
@@ -642,7 +660,11 @@ void MainWindow::populate_tree()
         if (pe->has_exports())
         {
             HTREEITEM   item_pe_exports{_main_tree.add_item(L"Export Directory", TreeItemDataType::peExports, item_pe_part, nullptr)};
-            //_main_tree.add_item(L"Exports", TreeItemDataType::Ex)
+        }
+
+        if (pe->has_resources())
+        {
+            HTREEITEM   item_pe_resources{_main_tree.add_resource_directory(_exe_info->pe_part()->resources(), item_pe_part, nullptr)};
         }
 
         if (pe->has_cli())

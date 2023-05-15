@@ -663,19 +663,106 @@ void PeExeInfo::load_cli(std::istream &stream, LoadOptions::Options options)
 
 void PeExeInfo::load_resource_info(std::istream &stream, LoadOptions::Options options)
 {
-    if (_data_directory.size() >= 3 && _data_directory[2].size > 0)
+    constexpr int   dir_index = DataDirectoryIndex::ResourceTable;
+
+    if (_data_directory.size() >= dir_index + 1 && _data_directory[dir_index].size > 0)
     {
-        auto    rva{_data_directory[2].virtual_address};
+        auto    rva{_data_directory[dir_index].virtual_address};
         auto    section{find_section_by_rva(rva, _sections)};
 
         if (section)
         {
+
+            const size_t    directory_size{_data_directory[dir_index].size};
+
             auto    pos{get_file_offset(rva, *section)};
             auto    here{stream.tellg()};
             stream.seekg(pos);
 
-            //TODO: Finish this!!!
+            _resource_directory = load_resource_directory(stream, 0, 0, pos);
 
+            stream.seekg(here);
         }
     }
+}
+
+std::unique_ptr<PeResourceDirectory> PeExeInfo::load_resource_directory(std::istream &stream, size_t level, uint32_t offset, std::streampos base)
+{
+    auto    resdir = std::make_unique<PeResourceDirectory>();
+
+    resdir->level = level;
+
+    stream.seekg(base + std::streamoff{offset});
+
+    read(stream, resdir->characteristics);
+    read(stream, resdir->timestamp);
+    read(stream, resdir->version_major);
+    read(stream, resdir->version_minor);
+    read(stream, resdir->num_name_entries);
+    read(stream, resdir->num_id_entries);
+
+    resdir->name_entries.reserve(resdir->num_name_entries);
+    resdir->id_entries.reserve(resdir->num_id_entries);
+
+    for (uint16_t i = 0; i < resdir->num_name_entries; ++i)
+    {
+        PeResourceDirectoryEntry    entry;
+        read(stream, entry.name_offset_or_int_id);
+        read(stream, entry.offset);
+
+        resdir->name_entries.emplace_back(std::move(entry));
+    }
+    for (uint16_t i = 0; i < resdir->num_id_entries; ++i)
+    {
+        PeResourceDirectoryEntry    entry;
+        read(stream, entry.name_offset_or_int_id);
+        read(stream, entry.offset);
+
+        resdir->id_entries.emplace_back(std::move(entry));
+    }
+
+    for (auto &entry : resdir->name_entries)
+    {
+        if (entry.offset & 0x80000000)
+            entry.next_dir = load_resource_directory(stream, level + 1, entry.offset & 0x7FFFFFFF, base);
+        else
+            entry.data_entry = load_resource_data_entry(stream, entry.offset, base);
+    }
+    for (auto &entry : resdir->id_entries)
+    {
+        if (entry.offset & 0x80000000)
+            entry.next_dir = load_resource_directory(stream, level + 1, entry.offset & 0x7FFFFFFF, base);
+        else
+            entry.data_entry = load_resource_data_entry(stream, entry.offset, base);
+    }
+
+    // resolve names
+    for (auto &entry : resdir->name_entries)
+    {
+        uint16_t    length;
+
+        stream.seekg(base + std::streamoff(entry.name_offset_or_int_id & 0x07FFFFFF));
+        read(stream, length);
+        if (length)
+        {
+            entry.name = read_wide_string(stream, length);
+        }
+    }
+
+    stream.seekg(base + std::streamoff{offset});
+    return resdir;
+}
+
+std::unique_ptr<PeResourceDataEntry> PeExeInfo::load_resource_data_entry(std::istream &stream, uint32_t offset, std::streampos base)
+{
+    auto    resdata = std::make_unique<PeResourceDataEntry>();
+
+    stream.seekg(base + std::streamoff{offset});
+    read(stream, resdata->data_rva);
+    read(stream, resdata->size);
+    read(stream, resdata->code_page);
+    read(stream, resdata->reserved);
+
+    stream.seekg(base + std::streamoff{offset});
+    return resdata;
 }

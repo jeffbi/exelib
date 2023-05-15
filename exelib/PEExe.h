@@ -678,11 +678,27 @@ struct PeDebugDirectoryEntry
     }
 };
 
+
+struct PeResourceDirectory; // Forward reference
+
+/// \brief  Represents a Resource Data Entry
+struct PeResourceDataEntry
+{
+    uint32_t    data_rva;
+    uint32_t    size;
+    uint32_t    code_page;
+    uint32_t    reserved;
+};
+
 /// \brief  Represents a Resource Directory Entry
 struct PeResourceDirectoryEntry
 {
     uint32_t    name_offset_or_int_id;  ///< Name offset or int ID, depending on the level of the table
     uint32_t    offset;                 ///< If high bit set, offset of data entry, otherwise address of next Resource Directory Table
+
+    std::wstring    name;
+    std::unique_ptr<PeResourceDirectory>    next_dir;
+    std::unique_ptr<PeResourceDataEntry>    data_entry;
 };
 
 /// \brief  Represents a Resource Directory Table
@@ -695,10 +711,11 @@ struct PeResourceDirectory
     uint16_t    num_name_entries;
     uint16_t    num_id_entries;
 
-    using ResourceEntries = std::vector<std::unique_ptr<PeResourceDirectoryEntry>>;
+    using ResourceDirEntries = std::vector<PeResourceDirectoryEntry>;
 
-    size_t          level;
-    ResourceEntries entries;
+    size_t              level;
+    ResourceDirEntries  name_entries;
+    ResourceDirEntries  id_entries;
 };
 
 
@@ -1764,6 +1781,15 @@ public:
         return _exports != nullptr;
     }
 
+    const PeResourceDirectory *resources() const noexcept
+    {
+        return _resource_directory.get();
+    }
+
+    bool has_resources() const noexcept
+    {
+        return _resource_directory != nullptr;
+    }
     /// \brief  Return a pointer to the CLI information.
     ///
     /// The CLI information may not exist if the module is not managed code,
@@ -1802,6 +1828,7 @@ private:
     std::unique_ptr<PeExports>              _exports;           // The Export tables data
     DebugDirectory                          _debug_directory;   // The Debug Directory
     std::unique_ptr<PeCli>                  _cli;               // CLI information if the PE image is managed code.
+    std::unique_ptr<PeResourceDirectory>    _resource_directory;    // The Resource Directory
 
 
 
@@ -1814,6 +1841,8 @@ private:
     void load_debug_directory(std::istream &stream, LoadOptions::Options options);
     void load_cli(std::istream &stream, LoadOptions::Options options);
     void load_resource_info(std::istream &stream, LoadOptions::Options options);
+    std::unique_ptr<PeResourceDirectory> load_resource_directory(std::istream &stream, size_t level, uint32_t offset, std::streampos base);
+    std::unique_ptr<PeResourceDataEntry> load_resource_data_entry(std::istream &stream, uint32_t offset, std::streampos base);
 };
 
 

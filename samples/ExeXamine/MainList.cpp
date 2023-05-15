@@ -1529,10 +1529,17 @@ void MainList::populate_pe_file_header(const PeImageFileHeader &header)
     StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%04X", header.timestamp);
     lvi.iSubItem = 1;
     set_item(&lvi);
-    const time_t    tt{header.timestamp};
-    tm              tm;
-    gmtime_s(&tm, &tt);
-    std::wcsftime(text_buffer.data(), text_buffer.size(), L"%c", &tm);
+    if (header.timestamp == 0 || header.timestamp == 0xFFFFFFFF)
+    {
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", header.timestamp);
+    }
+    else
+    {
+        const time_t    tt{header.timestamp};
+        tm              tm{0};
+        gmtime_s(&tm, &tt);
+        std::wcsftime(text_buffer.data(), text_buffer.size(), L"%c", &tm);
+    }
     lvi.iSubItem = 2;
     set_item(&lvi);
 
@@ -2617,10 +2624,17 @@ void MainList::populate_pe_exports(const PeExports &exports)
     _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Timestamp");
     insert_item(&lvi);
     ++lvi.iSubItem;
-    const time_t    tt{exports.directory.timestamp};
-    tm              tm{0};
-    gmtime_s(&tm, &tt);
-    std::wcsftime(text_buffer.data(), text_buffer.size(), L"%c", &tm);
+    if (exports.directory.timestamp == 0 || exports.directory.timestamp == 0xFFFFFFFF)
+    {
+        StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", exports.directory.timestamp);
+    }
+    else
+    {
+        const time_t    tt{exports.directory.timestamp};
+        tm              tm{0};
+        gmtime_s(&tm, &tt);
+        std::wcsftime(text_buffer.data(), text_buffer.size(), L"%c", &tm);
+    }
     set_item(&lvi);
 
     ++lvi.iItem;
@@ -2693,6 +2707,205 @@ void MainList::populate_pe_exports(const PeExports &exports)
     insert_item(&lvi);
     ++lvi.iSubItem;
     StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", exports.directory.ordinal_table_rva);
+    set_item(&lvi);
+}
+
+
+void MainList::populate_pe_resource_dir(const PeResourceDirectory &resource_dir)
+{
+    clear();
+
+    std::array<wchar_t, 80> text_buffer{};
+
+    // Add the column headers
+    LVCOLUMN    lvc{};
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+    lvc.fmt = LVCFMT_LEFT;
+    lvc.pszText = text_buffer.data();
+
+    lvc.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Item");
+    lvc.cx = 200;
+    insert_column(0, &lvc);
+
+    lvc.fmt = LVCFMT_RIGHT;
+    ++lvc.iSubItem;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Value");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+
+    // Insert the items
+    LVITEM  lvi{};
+
+    lvi.mask = LVIF_TEXT | LVIF_STATE;
+    lvi.pszText = text_buffer.data();
+    lvi.stateMask = 0;
+    lvi.state = 0;
+
+    lvi.iItem = 0;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Characteristics");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", resource_dir.characteristics);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Timestamp");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", resource_dir.timestamp);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Major version");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%hu", resource_dir.version_major);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Minor version");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%hu", resource_dir.version_minor);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Number Named Entries");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%hu", resource_dir.num_name_entries);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Number ID Entries");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%hu", resource_dir.num_id_entries);
+    set_item(&lvi);
+}
+
+void MainList::populate_pe_resource_dir_entry(const PeResourceDirectoryEntry &dir_entry)
+{
+    clear();
+
+    std::array<wchar_t, 80> text_buffer{};
+
+    // Add the column headers
+    LVCOLUMN    lvc{};
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+    lvc.fmt = LVCFMT_LEFT;
+    lvc.pszText = text_buffer.data();
+
+    lvc.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Item");
+    lvc.cx = 200;
+    insert_column(0, &lvc);
+
+    lvc.fmt = LVCFMT_RIGHT;
+    ++lvc.iSubItem;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Value");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+
+    // Insert the items
+    LVITEM  lvi{};
+
+    lvi.mask = LVIF_TEXT | LVIF_STATE;
+    lvi.pszText = text_buffer.data();
+    lvi.stateMask = 0;
+    lvi.state = 0;
+
+    lvi.iItem = 0;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Name Offset or ID");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", dir_entry.name_offset_or_int_id);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Data Entry or Subdir Offset");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", dir_entry.offset);
+    set_item(&lvi);
+}
+
+void MainList::populate_pe_resource_data_entry(const PeResourceDataEntry &data_entry)
+{
+    clear();
+
+    std::array<wchar_t, 80> text_buffer{};
+
+    // Add the column headers
+    LVCOLUMN    lvc{};
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+    lvc.fmt = LVCFMT_LEFT;
+    lvc.pszText = text_buffer.data();
+
+    lvc.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Item");
+    lvc.cx = 200;
+    insert_column(0, &lvc);
+
+    lvc.fmt = LVCFMT_RIGHT;
+    ++lvc.iSubItem;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Value");
+    lvc.cx = 100;
+    insert_column(lvc.iSubItem, &lvc);
+
+
+    // Insert the items
+    LVITEM  lvi{};
+
+    lvi.mask = LVIF_TEXT | LVIF_STATE;
+    lvi.pszText = text_buffer.data();
+    lvi.stateMask = 0;
+    lvi.state = 0;
+
+    lvi.iItem = 0;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Data RVA");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"0x%08X", data_entry.data_rva);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Size");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%u", data_entry.size);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Code Page");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%u", data_entry.code_page);
+    set_item(&lvi);
+
+    ++lvi.iItem;
+    lvi.iSubItem = 0;
+    _tcscpy_s(text_buffer.data(), text_buffer.size(), L"Reserved");
+    insert_item(&lvi);
+    ++lvi.iSubItem;
+    StringCbPrintf(text_buffer.data(), text_buffer.size(), L"%u", data_entry.reserved);
     set_item(&lvi);
 }
 

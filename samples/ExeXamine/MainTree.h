@@ -1,6 +1,8 @@
 #ifndef _MAIN_TREE_H_
 #define _MAIN_TREE_H_
 
+#include <array>
+
 #include "TreeView.h"
 
 
@@ -35,7 +37,9 @@ enum class TreeItemDataType
     peExports,
     peRelocations,
     peDebug,
-    peResources,
+    peResourceDir,
+    peResourceDirEntry,
+    peResourceDataEntry,
     peCli,
     peCliHeader,
     peCliMetadataHeader,
@@ -140,6 +144,82 @@ public:
     HTREEITEM add_item(const wchar_t *item_text, TreeItemDataType data_type, HTREEITEM parent, HTREEITEM previous) noexcept
     {
         return add_item(item_text, data_type, nullptr, parent, previous);
+    }
+
+    HTREEITEM add_resource_directory(const PeResourceDirectory *directory, HTREEITEM parent, HTREEITEM previous) noexcept
+    {
+        HTREEITEM   item{add_item(L"Resource Directory", TreeItemDataType::peResourceDir, directory, parent, previous)};
+
+        for (const auto &entry : directory->name_entries)
+        {
+            add_resource_dir_entry(&entry, directory->level, item, nullptr);
+        }
+        for (const auto &entry : directory->id_entries)
+        {
+            add_resource_dir_entry(&entry, directory->level, item, nullptr);
+        }
+
+        return item;
+    }
+
+    HTREEITEM add_resource_dir_entry(const PeResourceDirectoryEntry *dir_entry, size_t level, HTREEITEM parent, HTREEITEM previous)
+    {
+        static constexpr std::array resource_types
+                            {
+                                L"???_0",
+                                L"CURSOR",
+                                L"BITMAP",
+                                L"ICON",
+                                L"MENU",
+                                L"DIALOG",
+                                L"STRING",
+                                L"FONTDIR",
+                                L"FONT",
+                                L"ACCELERATORS",
+                                L"RCDATA",
+                                L"MESSAGETABLE",
+                                L"GROUP CURSOR",
+                                L"???_13",
+                                L"GROUP_ICON",
+                                L"???_15",
+                                L"VERSION",
+                                L"DLGINCLUDE",
+                                L"???_18",
+                                L"PLUGPLAY",
+                                L"VXD",
+                                L"ANICURSOR",
+                                L"ANIICON",
+                                L"HTML",
+                                L"MANIFEST"
+                            };
+
+        std::wstring    text{L"Directory Entry, "};
+        if (dir_entry->name_offset_or_int_id & 0x80000000)
+        {
+            text += L"Name: \"" + dir_entry->name + L'"';
+        }
+        else
+        {
+            text += L"ID: " + std::to_wstring(dir_entry->name_offset_or_int_id);
+            if (level == 0)
+            {
+                text += L" (";
+                if (dir_entry->name_offset_or_int_id < resource_types.size())
+                    text += resource_types[dir_entry->name_offset_or_int_id];
+                else
+                    text += L"???_" + std::to_wstring(dir_entry->name_offset_or_int_id);
+                text += ')';
+            }
+        }
+
+        HTREEITEM   item{add_item(text.c_str(), TreeItemDataType::peResourceDirEntry, dir_entry, parent, previous)};
+
+        if (dir_entry->next_dir)
+            add_resource_directory(dir_entry->next_dir.get(), item, nullptr);
+        else if (dir_entry->data_entry)
+            add_item(L"Resource Data Entry", TreeItemDataType::peResourceDataEntry, dir_entry->data_entry.get(), item, previous);
+
+        return item;
     }
 };
 

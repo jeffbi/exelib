@@ -97,6 +97,24 @@ inline std::string read_string(std::istream &stream, uint32_t byte_count)
     return rv;
 }
 
+/// \brief  Read a wide-character string of a specified length from an input stream.
+/// \param stream       A reference to an std::istream from which to read the string.
+/// \param char_count   The number of wide characters to read to produce the string.
+/// \return An std::wstring object containing the read characters.
+inline std::wstring read_wide_string(std::istream &stream, uint16_t char_count)
+{
+    std::wstring    rv(char_count, L'\0');
+    wchar_t         ch{};
+
+    for (uint16_t i = 0; i < char_count; ++i)
+    {
+        read(stream, ch);
+        rv.at(i) = ch;
+    }
+
+    return rv;
+}
+
 /// \brief  Read a string that is preceded by a length from an input stream.
 ///         The length is assumed to be a 32-bit unsigned integer.
 /// \param stream   A reference to an std::istream from which to read the string.

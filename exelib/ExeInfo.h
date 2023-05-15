@@ -46,13 +46,13 @@ public:
     ExeInfo &operator=(const ExeInfo &) = delete;   /// Copy assignment is deleted.
 
     /// \brief  Copy-construct an ExeInfo object.
-    ExeInfo(ExeInfo &&other)
+    ExeInfo(ExeInfo &&other) noexcept
     {
         *this = std::move(other);
     }
 
     /// \brief  Move-assign an ExeInfo object from another.
-    ExeInfo &operator=(ExeInfo &&other)
+    ExeInfo &operator=(ExeInfo &&other) noexcept
     {
         if (&other != this)
         {
